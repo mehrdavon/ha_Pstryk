@@ -24,7 +24,7 @@ Integracja dla Home Assistant umożliwiająca śledzenie aktualnych cen energii 
 ### Metoda 1: Via HACS
 1. W HACS przejdź do `Integracje`
 2. Kliknij `Dodaj repozytorium`
-3. Wpisz URL: `https://github.com/twoj_nick/pstryk-homeassistant`
+3. Wpisz URL: `https://github.com/balgerion/ha_Pstryk`
 4. Wybierz kategorię: `Integration`
 5. Zainstaluj i zrestartuj Home Assistant
 
