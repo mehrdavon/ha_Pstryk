@@ -7,7 +7,9 @@
         "data": {
           "api_key": "API Key",
           "buy_top": "Number of best buy prices",
-          "sell_top": "Number of best sell prices"
+          "sell_top": "Number of best sell prices",
+          "buy_worst": "Number of worst buy prices",
+          "sell_worst": "Number of worst sell prices"
         }
       }
     },
@@ -21,7 +23,9 @@
         "title": "Pstryk Energy Options",
         "data": {
           "buy_top": "Number of best buy prices",
-          "sell_top": "Number of best sell prices"
+          "sell_top": "Number of best sell prices",
+          "buy_worst": "Number of worst buy prices",
+          "sell_worst": "Number of worst sell prices"
         }
       }
     }
