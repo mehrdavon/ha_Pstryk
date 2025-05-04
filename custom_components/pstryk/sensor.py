@@ -22,8 +22,11 @@ async def async_setup_entry(
     api_key = hass.data[DOMAIN][entry.entry_id]["api_key"]
     buy_top = entry.options.get("buy_top", entry.data.get("buy_top", 5))
     sell_top = entry.options.get("sell_top", entry.data.get("sell_top", 5))
+    buy_worst = entry.options.get("buy_worst", entry.data.get("buy_worst", 5))
+    sell_worst = entry.options.get("sell_worst", entry.data.get("sell_worst", 5))
 
-    _LOGGER.debug("Setting up Pstryk sensors with buy_top=%d, sell_top=%d", buy_top, sell_top)
+    _LOGGER.debug("Setting up Pstryk sensors with buy_top=%d, sell_top=%d, buy_worst=%d, sell_worst=%d", 
+                 buy_top, sell_top, buy_worst, sell_worst)
 
     # Cleanup old coordinators if they exist
     for price_type in ("buy", "sell"):
@@ -85,7 +88,8 @@ async def async_setup_entry(
 
         # Create only one sensor per price type that combines both current price and table data
         top = buy_top if price_type == "buy" else sell_top
-        entities.append(PstrykPriceSensor(coordinator, price_type, top))
+        worst = buy_worst if price_type == "buy" else sell_worst
+        entities.append(PstrykPriceSensor(coordinator, price_type, top, worst))
 
     async_add_entities(entities, True)
 
@@ -94,10 +98,11 @@ class PstrykPriceSensor(CoordinatorEntity, SensorEntity):
     """Combined price sensor with table data attributes."""
     _attr_state_class = SensorStateClass.MEASUREMENT
 
-    def __init__(self, coordinator: PstrykDataUpdateCoordinator, price_type: str, top_count: int):
+    def __init__(self, coordinator: PstrykDataUpdateCoordinator, price_type: str, top_count: int, worst_count: int):
         super().__init__(coordinator)
         self.price_type = price_type
         self.top_count = top_count
+        self.worst_count = worst_count
         self._attr_device_class = "monetary"
         self._translations = {}
         
@@ -238,7 +243,9 @@ class PstrykPriceSensor(CoordinatorEntity, SensorEntity):
                 next_hour_key: None,
                 "all_prices": [],
                 "best_prices": [],
+                "worst_prices": [],
                 "top_count": self.top_count,
+                "worst_count": self.worst_count,
                 "last_updated": now.isoformat(),
                 "price_count": 0,
                 "data_available": False
@@ -246,17 +253,28 @@ class PstrykPriceSensor(CoordinatorEntity, SensorEntity):
             
         next_hour_data = self._get_next_hour_price()
         today = self.coordinator.data.get("prices_today", [])
-        sorted_prices = sorted(
+        
+        # Sortowanie dla najlepszych cen
+        sorted_best_prices = sorted(
             today,
             key=lambda x: x["price"],
             reverse=(self.price_type == "sell"),
         )
         
+        # Sortowanie dla najgorszych cen (odwrotna kolejność sortowania)
+        sorted_worst_prices = sorted(
+            today,
+            key=lambda x: x["price"],
+            reverse=(self.price_type != "sell"),
+        )
+        
         return {
             next_hour_key: next_hour_data,
             "all_prices": today,
-            "best_prices": sorted_prices[: self.top_count],
+            "best_prices": sorted_best_prices[: self.top_count],
+            "worst_prices": sorted_worst_prices[: self.worst_count],
             "top_count": self.top_count,
+            "worst_count": self.worst_count,
             "price_count": len(today),
             "last_updated": now.isoformat(),
             "data_available": True
