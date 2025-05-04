@@ -8,7 +8,7 @@ Integracja dla Home Assistant umożliwiająca śledzenie aktualnych cen energii 
 - 🔌 Aktualna cena kupna i sprzedaży energii
 - 📅 Tabela 24h z prognozowanymi cenami
 - ⚙️ Konfigurowalna liczba "najlepszych godzin"
-- 🔻 Konfigurowalna liczba "najgoirszych godzin"
+- 🔻 Konfigurowalna liczba "najgorszych godzin"
 - 🕒 Cena w następnej godzinie 
 - ⏰ Automatyczna konwersja czasu UTC → lokalny
 - 🔄 Dane są aktualizowane minutę po pełnej godzinie
