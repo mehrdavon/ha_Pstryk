@@ -3,44 +3,44 @@
     "step": {
       "user": {
         "title": "Pstryk Energy",
-        "description": "Configuration of Pstryk energy pricing integration",
+        "description": "Konfiguracja integracji cen energii Pstryk",
         "data": {
-          "api_key": "API Key",
-          "buy_top": "Number of best buy prices",
-          "sell_top": "Number of best sell prices",
-          "buy_worst": "Number of worst buy prices",
-          "sell_worst": "Number of worst sell prices"
+          "api_key": "Klucz API",
+          "buy_top": "Liczba najlepszych cen zakupu",
+          "sell_top": "Liczba najlepszych cen sprzedaży",
+          "buy_worst": "Liczba najgorszych cen zakupu",
+          "sell_worst": "Liczba najgorszych cen sprzedaży"
         }
       }
     },
     "error": {
-      "invalid_api_key": "Invalid API key"
+      "invalid_api_key": "Nieprawidłowy klucz API"
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Pstryk Energy Options",
+        "title": "Opcje Pstryk Energy",
         "data": {
-          "buy_top": "Number of best buy prices",
-          "sell_top": "Number of best sell prices",
-          "buy_worst": "Number of worst buy prices",
-          "sell_worst": "Number of worst sell prices"
+          "buy_top": "Liczba najlepszych cen zakupu",
+          "sell_top": "Liczba najlepszych cen sprzedaży",
+          "buy_worst": "Liczba najgorszych cen zakupu",
+          "sell_worst": "Liczba najgorszych cen sprzedaży"
         }
       }
     }
   },
   "entity": {
     "sensor": {
-      "next_hour": "Next hour"
+      "next_hour": "Następna godzina"
     }
   },
   "debug": {
-    "looking_for_next_hour": "Looking for price for next hour: {next_hour}",
-    "looking_for_next_day": "Looking for next day price in full price list (48h)",
-    "error_processing_date": "Error processing date: {error}",
-    "error_processing_full_list": "Error processing date for full list: {error}",
-    "no_price_midnight": "No price found for next day midnight. Data probably not loaded yet.",
-    "no_price_next_hour": "No price found for next hour: {next_hour}"
+    "looking_for_next_hour": "Szukam ceny dla następnej godziny: {next_hour}",
+    "looking_for_next_day": "Szukam ceny dla następnego dnia w pełnej liście cen (48h)",
+    "error_processing_date": "Błąd podczas przetwarzania daty: {error}",
+    "error_processing_full_list": "Błąd podczas przetwarzania daty dla pełnej listy: {error}",
+    "no_price_midnight": "Nie znaleziono ceny dla północy następnego dnia. Dane prawdopodobnie jeszcze nie załadowane.",
+    "no_price_next_hour": "Nie znaleziono ceny dla następnej godziny: {next_hour}"
   }
 }
