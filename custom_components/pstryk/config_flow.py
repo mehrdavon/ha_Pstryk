@@ -33,7 +33,9 @@ class PstrykConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema({
                 vol.Required("api_key"): str,
                 vol.Required("buy_top", default=5): vol.All(vol.Coerce(int), vol.Range(min=1, max=24)),
-                vol.Required("sell_top", default=5): vol.All(vol.Coerce(int), vol.Range(min=1, max=24))
+                vol.Required("sell_top", default=5): vol.All(vol.Coerce(int), vol.Range(min=1, max=24)),
+                vol.Required("buy_worst", default=5): vol.All(vol.Coerce(int), vol.Range(min=1, max=24)),
+                vol.Required("sell_worst", default=5): vol.All(vol.Coerce(int), vol.Range(min=1, max=24))
             }),
             errors=errors
         )
@@ -83,6 +85,12 @@ class PstrykOptionsFlowHandler(config_entries.OptionsFlow):
                     vol.Coerce(int), vol.Range(min=1, max=24)),
             vol.Required("sell_top", default=self.config_entry.options.get(
                 "sell_top", self.config_entry.data.get("sell_top", 5))): vol.All(
+                    vol.Coerce(int), vol.Range(min=1, max=24)),
+            vol.Required("buy_worst", default=self.config_entry.options.get(
+                "buy_worst", self.config_entry.data.get("buy_worst", 5))): vol.All(
+                    vol.Coerce(int), vol.Range(min=1, max=24)),
+            vol.Required("sell_worst", default=self.config_entry.options.get(
+                "sell_worst", self.config_entry.data.get("sell_worst", 5))): vol.All(
                     vol.Coerce(int), vol.Range(min=1, max=24)),
         }
 
