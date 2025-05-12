@@ -1,24 +1,26 @@
 # Integracja Home Assistant z Pstryk API
 
-[![Wersja](https://img.shields.io/badge/wersja-1.4.0-blue)](https://github.com/balgerion/ha_Pstryk/)
+[![Wersja](https://img.shields.io/badge/wersja-1.5.0-blue)](https://github.com/balgerion/ha_Pstryk/)
 
 Integracja dla Home Assistant umożliwiająca śledzenie aktualnych cen energii elektrycznej oraz prognoz z platformy Pstryk.
 
-## Funkcje
-- 🔌 Aktualna cena kupna i sprzedaży energii
-- 📅 Tabela 24h z prognozowanymi cenami
-- ⚙️ Konfigurowalna liczba "najlepszych godzin"
-- 🔻 Konfigurowalna liczba "najgorszych godzin"
-- 🕒 Cena w następnej godzinie 
-- ⏰ Automatyczna konwersja czasu UTC → lokalny
-- 🔄 Dane są aktualizowane minutę po pełnej godzinie
-- 🛡️ Debug i logowanie
-- 🧩 Konfiguracja z poziomu integracji
-- 🔑 Walidacja klucza API
+## Funkcje  
+- 🔌 Aktualna cena kupna i sprzedaży energii  
+- 📅 Tabela 24h z prognozowanymi cenami  
+- ⚙️ Konfigurowalna liczba "najlepszych godzin"  
+- 🔻 Konfigurowalna liczba "najgorszych godzin"  
+- 🕒 Cena w następnej godzinie  
+- 🕰️ Automatyczna konwersja czasu UTC → lokalny  
+- 🔄 Dane są aktualizowane minutę po pełnej godzinie  
+- 🛡️ Debug i logowanie  
+- 🧩 Konfiguracja z poziomu integracji  
+- 🔑 Walidacja klucza API / Cache danych / Zabezpieczenie przed timeoutem API  
+- 📡 Integracja wystawia po lokalnym MQTT dane dla EVCC  
+
 
 ## TODO
-- Zabezpieczenie przed timeoutem API
-
+-
+Taryfy dla Victron MQTT 
 ## Instalacja
 
 ### Metoda 1: Via HACS
