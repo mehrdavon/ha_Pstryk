@@ -132,8 +132,6 @@ actions:
 
 Rozładowanie magazynu energii - Sprzedaż po najlepszej cenie
 
-```yaml
-
 
 ##EVCC
 ![{9EE9344A-DAA3-42C0-9084-D2F3B5AE1B08}](https://github.com/user-attachments/assets/1812343e-3fa7-4e44-9205-f8f0c524f771)
