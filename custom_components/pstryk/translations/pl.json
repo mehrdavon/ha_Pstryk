@@ -7,12 +7,18 @@
         "data": {
           "api_key": "Klucz API",
           "buy_top": "Liczba najlepszych cen zakupu",
-          "sell_top": "Liczba najlepszych cen sprzedaży"
+          "sell_top": "Liczba najlepszych cen sprzedaży",
+          "buy_worst": "Liczba najgorszych cen zakupu",
+          "sell_worst": "Liczba najgorszych cen sprzedaży",
+          "mqtt_enabled": "Włącz mostek MQTT dla EVCC",
+          "mqtt_topic_buy": "Temat MQTT dla cen zakupu EVCC",
+          "mqtt_topic_sell": "Temat MQTT dla cen sprzedaży EVCC"
         }
       }
     },
     "error": {
-      "invalid_api_key": "Nieprawidłowy klucz API"
+      "invalid_api_key": "Nieprawidłowy klucz API",
+      "mqtt_not_configured": "Integracja MQTT nie jest skonfigurowana lub nie działa. Skonfiguruj integrację MQTT w Home Assistant przed włączeniem mostka MQTT dla EVCC."
     }
   },
   "options": {
@@ -21,15 +27,26 @@
         "title": "Opcje Pstryk Energy",
         "data": {
           "buy_top": "Liczba najlepszych cen zakupu",
-          "sell_top": "Liczba najlepszych cen sprzedaży"
+          "sell_top": "Liczba najlepszych cen sprzedaży",
+          "buy_worst": "Liczba najgorszych cen zakupu",
+          "sell_worst": "Liczba najgorszych cen sprzedaży",
+          "mqtt_enabled": "Włącz mostek MQTT dla EVCC",
+          "mqtt_topic_buy": "Temat MQTT dla cen zakupu EVCC",
+          "mqtt_topic_sell": "Temat MQTT dla cen sprzedaży EVCC"
         }
       }
     }
   },
   "entity": {
     "sensor": {
-      "next_hour": "Następna godzina"
+      "next_hour": "Następna godzina",
+      "using_cached_data": "Używanie danych z pamięci podręcznej"
     }
+  },
+  "mqtt": {
+    "publishing_success": "Pomyślnie opublikowano {count} cen do tematu MQTT {topic}",
+    "publishing_error": "Błąd publikowania do MQTT: {error}",
+    "mqtt_disabled": "Integracja MQTT nie jest włączona"
   },
   "debug": {
     "looking_for_next_hour": "Szukam ceny dla następnej godziny: {next_hour}",
@@ -37,6 +54,9 @@
     "error_processing_date": "Błąd podczas przetwarzania daty: {error}",
     "error_processing_full_list": "Błąd podczas przetwarzania daty dla pełnej listy: {error}",
     "no_price_midnight": "Nie znaleziono ceny dla północy następnego dnia. Dane prawdopodobnie jeszcze nie załadowane.",
-    "no_price_next_hour": "Nie znaleziono ceny dla następnej godziny: {next_hour}"
+    "no_price_next_hour": "Nie znaleziono ceny dla następnej godziny: {next_hour}",
+    "retry_attempt": "Próba {retry}/{max_retries} po błędzie: {error} (opóźnienie: {delay}s)",
+    "timeout_after_retries": "Timeout przy pobieraniu danych {price_type} z API po {retries} próbach",
+    "api_timeout_message": "Timeout API po {timeout} sekundach (wykonano {retries} prób)"
   }
 }
