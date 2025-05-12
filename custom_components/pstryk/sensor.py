@@ -161,7 +161,8 @@ class PstrykPriceSensor(CoordinatorEntity, SensorEntity):
         is_looking_for_next_day = next_hour.day != now.day
         
         # First check in prices_today
-        if not is_looking_for_next_day or self.coordinator.data.get("prices_today"):
+        price_found = None
+        if self.coordinator.data.get("prices_today"):
             for price_data in self.coordinator.data.get("prices_today", []):
                 if "start" not in price_data:
                     continue
@@ -174,7 +175,9 @@ class PstrykPriceSensor(CoordinatorEntity, SensorEntity):
                     price_datetime = dt_util.as_local(price_datetime)
                     
                     if price_datetime.hour == next_hour.hour and price_datetime.day == next_hour.day:
-                        return price_data.get("price")
+                        price_found = price_data.get("price")
+                        _LOGGER.debug("Found price for %s in today's list: %s", next_hour.isoformat(), price_found)
+                        return price_found
                 except Exception as e:
                     error_msg = self._translations.get(
                         "debug.error_processing_date", 
@@ -182,13 +185,9 @@ class PstrykPriceSensor(CoordinatorEntity, SensorEntity):
                     ).format(error=str(e))
                     _LOGGER.error(error_msg)
         
-        # If looking for midnight hour (next day), also check prices (full 48h list)
-        if is_looking_for_next_day and self.coordinator.data.get("prices"):
-            next_day_msg = self._translations.get(
-                "debug.looking_for_next_day", 
-                "Looking for next day price in full price list (48h)"
-            )
-            _LOGGER.debug(next_day_msg)
+        # Always check the full list as a fallback, regardless of day
+        if self.coordinator.data.get("prices"):
+            _LOGGER.debug("Looking for price in full 48h list as fallback")
             
             for price_data in self.coordinator.data.get("prices", []):
                 if "start" not in price_data:
@@ -201,9 +200,11 @@ class PstrykPriceSensor(CoordinatorEntity, SensorEntity):
                         
                     price_datetime = dt_util.as_local(price_datetime)
                     
-                    # Check if this is 00:00 of the next day
-                    if price_datetime.hour == 0 and price_datetime.day == next_hour.day:
-                        return price_data.get("price")
+                    # Check if this matches the hour and day we're looking for
+                    if price_datetime.hour == next_hour.hour and price_datetime.day == next_hour.day:
+                        price_found = price_data.get("price")
+                        _LOGGER.debug("Found price for %s in full 48h list: %s", next_hour.isoformat(), price_found)
+                        return price_found
                 except Exception as e:
                     full_list_error_msg = self._translations.get(
                         "debug.error_processing_full_list", 
@@ -224,7 +225,7 @@ class PstrykPriceSensor(CoordinatorEntity, SensorEntity):
                 "No price found for next hour: {next_hour}"
             ).format(next_hour=next_hour.isoformat())
             _LOGGER.warning(no_price_msg)
-            
+                
         return None
         
     @property
@@ -238,6 +239,12 @@ class PstrykPriceSensor(CoordinatorEntity, SensorEntity):
             "Next hour"
         )
         
+        # Get translated cache info
+        using_cached_key = self._translations.get(
+            "entity.sensor.using_cached_data", 
+            "Using cached data"
+        )
+        
         if self.coordinator.data is None:
             return {
                 next_hour_key: None,
@@ -248,11 +255,12 @@ class PstrykPriceSensor(CoordinatorEntity, SensorEntity):
                 "worst_count": self.worst_count,
                 "last_updated": now.isoformat(),
                 "price_count": 0,
-                "data_available": False
+                using_cached_key: False
             }
             
         next_hour_data = self._get_next_hour_price()
         today = self.coordinator.data.get("prices_today", [])
+        is_cached = self.coordinator.data.get("is_cached", False)
         
         # Sortowanie dla najlepszych cen
         sorted_best_prices = sorted(
@@ -277,7 +285,7 @@ class PstrykPriceSensor(CoordinatorEntity, SensorEntity):
             "worst_count": self.worst_count,
             "price_count": len(today),
             "last_updated": now.isoformat(),
-            "data_available": True
+            using_cached_key: is_cached
         }
         
     @property
