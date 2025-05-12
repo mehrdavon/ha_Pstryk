@@ -135,9 +135,12 @@ Rozładowanie magazynu energii - Sprzedaż po najlepszej cenie
 
 ##EVCC
 
+###Scrnshoty
 ![{9EE9344A-DAA3-42C0-9084-D2F3B5AE1B08}](https://github.com/user-attachments/assets/1812343e-3fa7-4e44-9205-f8f0c524f771)
 ![{6B2DA5CA-5797-43FB-88DC-F908D9B72501}](https://github.com/user-attachments/assets/0a4a6e46-8b49-4a6b-8676-3e57bf272bf8)
 
+
+###Konfiguracja
 Tarrifs:
 ```yaml
 currency: PLN
