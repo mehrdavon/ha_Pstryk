@@ -1,0 +1,62 @@
+publish_to_evcc:
+  name: Publish to EVCC
+  description: Manually publish energy prices to EVCC via MQTT
+  fields:
+    entry_id:
+      name: Config Entry ID
+      description: Specific config entry ID to publish for (optional, if not specified all entries will be used)
+      example: 3eb1f2a55d321c918844d5c9fbc7d4bd
+      required: false
+      selector:
+        text:
+    topic_buy:
+      name: MQTT Buy Topic
+      description: Override the MQTT topic for buy prices (optional)
+      example: energy/forecast/buy
+      required: false
+      selector:
+        text:
+    topic_sell:
+      name: MQTT Sell Topic
+      description: Override the MQTT topic for sell prices (optional)
+      example: energy/forecast/sell
+      required: false
+      selector:
+        text:
+
+force_retain:
+  name: Force Retain MQTT Messages
+  description: Force MQTT messages to be retained by republishing them periodically
+  fields:
+    entry_id:
+      name: Config Entry ID
+      description: Specific config entry ID to publish for (optional, if not specified all entries will be used)
+      example: 3eb1f2a55d321c918844d5c9fbc7d4bd
+      required: false
+      selector:
+        text:
+    topic_buy:
+      name: MQTT Buy Topic
+      description: Override the MQTT topic for buy prices (optional)
+      example: energy/forecast/buy
+      required: false
+      selector:
+        text:
+    topic_sell:
+      name: MQTT Sell Topic
+      description: Override the MQTT topic for sell prices (optional)
+      example: energy/forecast/sell
+      required: false
+      selector:
+        text:
+    retain_hours:
+      name: Retain Hours
+      description: Number of hours to keep republishing the message (default 168 hours = 7 days)
+      example: 168
+      required: false
+      default: 168
+      selector:
+        number:
+          min: 1
+          max: 720
+          step: 1
