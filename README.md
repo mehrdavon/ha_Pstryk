@@ -140,7 +140,7 @@ actions:
 
 ### Konfiguracja
 
-Tarrifs:
+Taryfy:
 ```yaml
 currency: PLN
 grid:
