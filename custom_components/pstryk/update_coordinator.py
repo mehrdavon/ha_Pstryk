@@ -7,6 +7,7 @@ import async_timeout
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.event import async_track_point_in_time
 from homeassistant.util import dt as dt_util
+from homeassistant.helpers.translation import async_get_translations
 from .const import API_URL, API_TIMEOUT, BUY_ENDPOINT, SELL_ENDPOINT, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -14,7 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 class ExponentialBackoffRetry:
     """Implementacja wykładniczego opóźnienia przy ponawianiu prób."""
 
-    def __init__(self, max_retries=3, base_delay=2.0):
+    def __init__(self, max_retries=3, base_delay=20.0):
         """Inicjalizacja mechanizmu ponowień.
         
         Args:
@@ -23,13 +24,24 @@ class ExponentialBackoffRetry:
         """
         self.max_retries = max_retries
         self.base_delay = base_delay
+        self._translations = {}
         
-    async def execute(self, func, *args, **kwargs):
+    async def load_translations(self, hass):
+        """Załaduj tłumaczenia dla aktualnego języka."""
+        try:
+            self._translations = await async_get_translations(
+                hass, hass.config.language, DOMAIN, ["debug"]
+            )
+        except Exception as ex:
+            _LOGGER.warning("Failed to load translations for retry mechanism: %s", ex)
+        
+    async def execute(self, func, *args, price_type=None, **kwargs):
         """Wykonaj funkcję z ponawianiem prób.
         
         Args:
             func: Funkcja asynchroniczna do wykonania
             args, kwargs: Argumenty funkcji
+            price_type: Typ ceny (do logów)
             
         Returns:
             Wynik funkcji
@@ -46,13 +58,38 @@ class ExponentialBackoffRetry:
                 # Nie czekamy po ostatniej próbie
                 if retry < self.max_retries - 1:
                     delay = self.base_delay * (2 ** retry)
-                    _LOGGER.debug(
-                        "Retry %d/%d after error: %s (delay: %.1fs)",
-                        retry + 1, self.max_retries, str(err), delay,
+                    
+                    # Użyj przetłumaczonego komunikatu jeśli dostępny
+                    retry_msg = self._translations.get(
+                        "debug.retry_attempt", 
+                        "Retry {retry}/{max_retries} after error: {error} (delay: {delay}s)"
+                    ).format(
+                        retry=retry + 1, 
+                        max_retries=self.max_retries, 
+                        error=str(err), 
+                        delay=round(delay, 1)
                     )
+                    
+                    _LOGGER.debug(retry_msg)
                     await asyncio.sleep(delay)
         
-        # Jeśli wszystkie próby zawiodły
+        # Jeśli wszystkie próby zawiodły i mamy timeout
+        if isinstance(last_exception, asyncio.TimeoutError) and price_type:
+            timeout_msg = self._translations.get(
+                "debug.timeout_after_retries", 
+                "Timeout fetching {price_type} data from API after {retries} retries"
+            ).format(price_type=price_type, retries=self.max_retries)
+            
+            _LOGGER.error(timeout_msg)
+            
+            api_timeout_msg = self._translations.get(
+                "debug.api_timeout_message", 
+                "API timeout after {timeout} seconds (tried {retries} times)"
+            ).format(timeout=API_TIMEOUT, retries=self.max_retries)
+            
+            raise UpdateFailed(api_timeout_msg)
+        
+        # Dla innych typów błędów
         raise last_exception
 
 def convert_price(value):
@@ -80,7 +117,8 @@ class PstrykDataUpdateCoordinator(DataUpdateCoordinator):
         self.price_type = price_type
         self._unsub_hourly = None
         self._unsub_midnight = None
-        self.retry_mechanism = ExponentialBackoffRetry()
+        # Inicjalizacja mechanizmu ponowień z 3 próbami i dłuższym odstępem
+        self.retry_mechanism = ExponentialBackoffRetry(max_retries=3, base_delay=20.0)
         
         # Set a default update interval as a fallback (1 hour)
         # This ensures data is refreshed even if scheduled updates fail
@@ -125,6 +163,15 @@ class PstrykDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         """Fetch 48h of frames and extract current + today's list."""
         _LOGGER.debug("Starting %s price update", self.price_type)
+        
+        # Store the previous data for fallback
+        previous_data = None
+        if hasattr(self, 'data') and self.data:
+            previous_data = self.data.copy() if self.data else None
+            if previous_data:
+                # Oznacz jako dane z cache, jeśli będziemy ich używać
+                previous_data["is_cached"] = True
+        
         today_local = dt_util.now().replace(hour=0, minute=0, second=0, microsecond=0)
         window_end_local = today_local + timedelta(days=2)
         start_utc = dt_util.as_utc(today_local).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -137,12 +184,17 @@ class PstrykDataUpdateCoordinator(DataUpdateCoordinator):
         _LOGGER.debug("Requesting %s data from %s", self.price_type, url)
 
         try:
-            # Użyj mechanizmu ponowień
-            try:
-                data = await self.retry_mechanism.execute(self._make_api_request, url)
-            except asyncio.TimeoutError:
-                _LOGGER.error("Timeout fetching %s data from API", self.price_type)
-                raise UpdateFailed(f"API timeout after {API_TIMEOUT} seconds")
+            # Załaduj tłumaczenia dla mechanizmu ponowień
+            await self.retry_mechanism.load_translations(self.hass)
+            
+            # Użyj mechanizmu ponowień z parametrem price_type
+            # Nie potrzebujemy łapać asyncio.TimeoutError tutaj, ponieważ
+            # jest już obsługiwany w execute() z odpowiednimi tłumaczeniami
+            data = await self.retry_mechanism.execute(
+                self._make_api_request, 
+                url, 
+                price_type=self.price_type
+            )
 
             frames = data.get("frames", [])
             if not frames:
@@ -180,13 +232,20 @@ class PstrykDataUpdateCoordinator(DataUpdateCoordinator):
                 "prices_today": prices_today,
                 "prices": prices,
                 "current": current_price,
+                "is_cached": False,  # Dane bezpośrednio z API
             }
 
         except aiohttp.ClientError as err:
             _LOGGER.error("Network error fetching %s data: %s", self.price_type, str(err))
+            if previous_data:
+                _LOGGER.warning("Using cached data from previous update due to API failure")
+                return previous_data
             raise UpdateFailed(f"Network error: {err}")
         except Exception as err:
             _LOGGER.exception("Unexpected error fetching %s data: %s", self.price_type, str(err))
+            if previous_data:
+                _LOGGER.warning("Using cached data from previous update due to API failure")
+                return previous_data
             raise UpdateFailed(f"Error: {err}")
 
     def schedule_hourly_update(self):
