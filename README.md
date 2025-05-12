@@ -55,7 +55,8 @@ logo.png (opcjonalnie)
 ![{5787179E-9AE8-415F-9D93-2884EF544768}](https://github.com/user-attachments/assets/3fdea007-8c43-40a0-a188-455dca9b805a)
 ![{34821286-F16C-496F-B87A-D2B534190B42}](https://github.com/user-attachments/assets/9fe65b19-dd5b-4d4f-bf0e-6980e41fb1f0)
 ![{CF93284B-2363-4494-A2CC-D10D1690B0D5}](https://github.com/user-attachments/assets/0665485a-3487-4b7f-9785-10846bbf3733)
-![{0BAA4A9C-287B-4162-9AA1-31A1A6111BAB}](https://github.com/user-attachments/assets/6af25e58-3c7e-48ee-8b64-bbe0d3856167)
+![{4AB44C7A-202D-435D-A0CB-5753C591C087}](https://github.com/user-attachments/assets/e9a703d7-f7b5-4ea6-b497-b47be0226130)
+
 
 
 
@@ -132,3 +133,24 @@ actions:
 Rozładowanie magazynu energii - Sprzedaż po najlepszej cenie
 
 ```yaml
+
+
+##EVCC
+![{9EE9344A-DAA3-42C0-9084-D2F3B5AE1B08}](https://github.com/user-attachments/assets/1812343e-3fa7-4e44-9205-f8f0c524f771)
+![{6B2DA5CA-5797-43FB-88DC-F908D9B72501}](https://github.com/user-attachments/assets/0a4a6e46-8b49-4a6b-8676-3e57bf272bf8)
+
+Tarrifs:
+```yaml
+currency: PLN
+grid:
+  type: custom
+  forecast:
+    source: mqtt
+    topic: energy/forecast/buy
+
+feedin:
+  type: custom
+  forecast:
+    source: mqtt
+    topic: energy/forecast/sell
+```
