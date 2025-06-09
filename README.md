@@ -18,7 +18,7 @@ Integracja dla Home Assistant umożliwiająca śledzenie aktualnych cen energii 
 - 🛡️ Debug i logowanie  
 - 🧩 Konfiguracja z poziomu integracji  
 - 🔑 Walidacja klucza API / Cache danych / Zabezpieczenie przed timeoutem API  
-- 📡 Integracja wystawia po lokalnym MQTT dane dla EVCC  
+- 📡 Integracja wystawia po lokalnym MQTT 
 
 
 ## TODO
