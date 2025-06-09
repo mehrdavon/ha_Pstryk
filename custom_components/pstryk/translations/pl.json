@@ -10,9 +10,12 @@
           "sell_top": "Liczba najlepszych cen sprzedaży",
           "buy_worst": "Liczba najgorszych cen zakupu",
           "sell_worst": "Liczba najgorszych cen sprzedaży",
-          "mqtt_enabled": "Włącz mostek MQTT dla EVCC",
-          "mqtt_topic_buy": "Temat MQTT dla cen zakupu EVCC",
-          "mqtt_topic_sell": "Temat MQTT dla cen sprzedaży EVCC"
+          "mqtt_enabled": "Włącz mostek MQTT",
+          "mqtt_topic_buy": "Temat MQTT dla cen zakupu",
+          "mqtt_topic_sell": "Temat MQTT dla cen sprzedaży",
+          "mqtt_48h_mode": "Włącz tryb 48h dla MQTT",
+          "retry_attempts": "Liczba prób połączenia z API",
+          "retry_delay": "Opóźnienie między próbami (sekundy)"
         }
       }
     },
@@ -30,9 +33,12 @@
           "sell_top": "Liczba najlepszych cen sprzedaży",
           "buy_worst": "Liczba najgorszych cen zakupu",
           "sell_worst": "Liczba najgorszych cen sprzedaży",
-          "mqtt_enabled": "Włącz mostek MQTT dla EVCC",
-          "mqtt_topic_buy": "Temat MQTT dla cen zakupu EVCC",
-          "mqtt_topic_sell": "Temat MQTT dla cen sprzedaży EVCC"
+          "mqtt_enabled": "Włącz mostek MQTT",
+          "mqtt_topic_buy": "Temat MQTT dla cen zakupu",
+          "mqtt_topic_sell": "Temat MQTT dla cen sprzedaży",
+          "mqtt_48h_mode": "Włącz tryb 48h dla MQTT",
+          "retry_attempts": "Liczba prób połączenia z API",
+          "retry_delay": "Opóźnienie między próbami (sekundy)"
         }
       }
     }
@@ -40,7 +46,19 @@
   "entity": {
     "sensor": {
       "next_hour": "Następna godzina",
-      "using_cached_data": "Używanie danych z pamięci podręcznej"
+      "using_cached_data": "Używanie danych z pamięci podręcznej",
+      "all_prices": "Wszystkie ceny",
+      "best_prices": "Najlepsze ceny",
+      "worst_prices": "Najgorsze ceny",
+      "best_count": "Liczba najlepszych",
+      "worst_count": "Liczba najgorszych",
+      "price_count": "Liczba cen",
+      "last_updated": "Ostatnia aktualizacja",
+      "avg_price": "Średnia cena dziś",
+      "avg_price_remaining": "Średnia cena pozostałe",
+      "avg_price_full_day": "Średnia cena cały dzień",
+      "tomorrow_available": "Dostępność cen na jutro",
+      "mqtt_price_count": "Liczba cen MQTT"
     }
   },
   "mqtt": {
@@ -57,6 +75,25 @@
     "no_price_next_hour": "Nie znaleziono ceny dla następnej godziny: {next_hour}",
     "retry_attempt": "Próba {retry}/{max_retries} po błędzie: {error} (opóźnienie: {delay}s)",
     "timeout_after_retries": "Timeout przy pobieraniu danych {price_type} z API po {retries} próbach",
-    "api_timeout_message": "Timeout API po {timeout} sekundach (wykonano {retries} prób)"
+    "api_timeout_message": "Timeout API po {timeout} sekundach (wykonano {retries} prób)",
+    "api_error_401": "Błąd uwierzytelniania API dla {price_type} - nieprawidłowy klucz API",
+    "api_error_401_user": "Błąd uwierzytelniania API - nieprawidłowy klucz API",
+    "api_error_403": "Dostęp do API zabroniony dla {price_type} - problem z uprawnieniami",
+    "api_error_403_user": "Dostęp do API zabroniony - sprawdź uprawnienia",
+    "api_error_404": "Endpoint API nie znaleziony dla {price_type} - sprawdź URL",
+    "api_error_404_user": "Endpoint API nie znaleziony",
+    "api_error_429": "Przekroczono limit zapytań API dla {price_type}",
+    "api_error_429_user": "Przekroczono limit zapytań API - spróbuj ponownie później",
+    "api_error_502": "Błąd bramy API (502) dla {price_type} - serwer może być niedostępny",
+    "api_error_502_user": "Błąd bramy API (502) - serwer może być niedostępny",
+    "api_error_5xx": "Błąd serwera API ({status}) dla {price_type} - problem z serwerem",
+    "api_error_5xx_user": "Błąd serwera API ({status}) - problem z serwerem",
+    "api_error_generic": "Błąd API {status} dla {price_type}: {error}",
+    "api_error_generic_user": "Błąd API {status}: {error}",
+    "network_error": "Błąd sieci podczas pobierania danych {price_type}: {error}",
+    "network_error_user": "Błąd sieci: {error}",
+    "unexpected_error": "Nieoczekiwany błąd podczas pobierania danych {price_type}: {error}",
+    "unexpected_error_user": "Błąd: {error}",
+    "using_cache": "Używanie danych z pamięci podręcznej z powodu błędu API"
   }
 }
