@@ -17,7 +17,16 @@ from .const import (
     DEFAULT_MQTT_TOPIC_SELL, 
     CONF_MQTT_ENABLED, 
     CONF_MQTT_TOPIC_BUY, 
-    CONF_MQTT_TOPIC_SELL
+    CONF_MQTT_TOPIC_SELL,
+    CONF_MQTT_48H_MODE,
+    CONF_RETRY_ATTEMPTS,
+    CONF_RETRY_DELAY,
+    DEFAULT_RETRY_ATTEMPTS,
+    DEFAULT_RETRY_DELAY,
+    MIN_RETRY_ATTEMPTS,
+    MAX_RETRY_ATTEMPTS,
+    MIN_RETRY_DELAY,
+    MAX_RETRY_DELAY
 )
 
 class MQTTNotConfiguredError(HomeAssistantError):
@@ -26,7 +35,9 @@ class MQTTNotConfiguredError(HomeAssistantError):
 
 class PstrykConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Pstryk Energy."""
-    VERSION = 2
+    VERSION = 3
+    # Version 3 adds retry mechanism configuration
+    # Version 2 adds MQTT support and 48h mode
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
@@ -54,11 +65,14 @@ class PstrykConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "sell_worst": user_input["sell_worst"],
                     }
                     
-                    # Add MQTT configs to options
+                    # Add MQTT configs and retry mechanism to options
                     options = {
                         CONF_MQTT_ENABLED: user_input.get(CONF_MQTT_ENABLED, False),
                         CONF_MQTT_TOPIC_BUY: user_input.get(CONF_MQTT_TOPIC_BUY, DEFAULT_MQTT_TOPIC_BUY),
                         CONF_MQTT_TOPIC_SELL: user_input.get(CONF_MQTT_TOPIC_SELL, DEFAULT_MQTT_TOPIC_SELL),
+                        CONF_MQTT_48H_MODE: user_input.get(CONF_MQTT_48H_MODE, False),
+                        CONF_RETRY_ATTEMPTS: user_input.get(CONF_RETRY_ATTEMPTS, DEFAULT_RETRY_ATTEMPTS),
+                        CONF_RETRY_DELAY: user_input.get(CONF_RETRY_DELAY, DEFAULT_RETRY_DELAY),
                     }
                     
                     return self.async_create_entry(
@@ -91,7 +105,18 @@ class PstrykConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_MQTT_ENABLED, default=False): bool,
                 vol.Optional(CONF_MQTT_TOPIC_BUY, default=DEFAULT_MQTT_TOPIC_BUY): str,
                 vol.Optional(CONF_MQTT_TOPIC_SELL, default=DEFAULT_MQTT_TOPIC_SELL): str,
+                vol.Optional(CONF_MQTT_48H_MODE, default=False): bool,
             })
+        
+        # Add retry mechanism fields
+        schema.update({
+            vol.Optional(CONF_RETRY_ATTEMPTS, default=DEFAULT_RETRY_ATTEMPTS): vol.All(
+                vol.Coerce(int), vol.Range(min=MIN_RETRY_ATTEMPTS, max=MAX_RETRY_ATTEMPTS)
+            ),
+            vol.Optional(CONF_RETRY_DELAY, default=DEFAULT_RETRY_DELAY): vol.All(
+                vol.Coerce(int), vol.Range(min=MIN_RETRY_DELAY, max=MAX_RETRY_DELAY)
+            ),
+        })
 
         return self.async_show_form(
             step_id="user",
@@ -189,7 +214,21 @@ class PstrykOptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_MQTT_TOPIC_BUY, DEFAULT_MQTT_TOPIC_BUY)): str,
                 vol.Optional(CONF_MQTT_TOPIC_SELL, default=self.config_entry.options.get(
                     CONF_MQTT_TOPIC_SELL, DEFAULT_MQTT_TOPIC_SELL)): str,
+                vol.Optional(CONF_MQTT_48H_MODE, default=self.config_entry.options.get(
+                    CONF_MQTT_48H_MODE, False)): bool,
             })
+        
+        # Add retry mechanism fields
+        options.update({
+            vol.Optional(CONF_RETRY_ATTEMPTS, default=self.config_entry.options.get(
+                CONF_RETRY_ATTEMPTS, DEFAULT_RETRY_ATTEMPTS)): vol.All(
+                    vol.Coerce(int), vol.Range(min=MIN_RETRY_ATTEMPTS, max=MAX_RETRY_ATTEMPTS)
+            ),
+            vol.Optional(CONF_RETRY_DELAY, default=self.config_entry.options.get(
+                CONF_RETRY_DELAY, DEFAULT_RETRY_DELAY)): vol.All(
+                    vol.Coerce(int), vol.Range(min=MIN_RETRY_DELAY, max=MAX_RETRY_DELAY)
+            ),
+        })
 
         return self.async_show_form(
             step_id="init", 
