@@ -10,9 +10,12 @@
           "sell_top": "Number of best sell prices",
           "buy_worst": "Number of worst buy prices",
           "sell_worst": "Number of worst sell prices",
-          "mqtt_enabled": "Enable EVCC MQTT Bridge",
-          "mqtt_topic_buy": "MQTT Topic for EVCC Buy Prices",
-          "mqtt_topic_sell": "MQTT Topic for EVCC Sell Prices"
+          "mqtt_enabled": "Enable MQTT Bridge",
+          "mqtt_topic_buy": "MQTT Topic for Buy Prices",
+          "mqtt_topic_sell": "MQTT Topic for Sell Prices",
+          "mqtt_48h_mode": "Enable 48h mode for MQTT",
+          "retry_attempts": "API retry attempts",
+          "retry_delay": "API retry delay (seconds)"
         }
       }
     },
@@ -30,9 +33,12 @@
           "sell_top": "Number of best sell prices",
           "buy_worst": "Number of worst buy prices",
           "sell_worst": "Number of worst sell prices",
-          "mqtt_enabled": "Enable EVCC MQTT Bridge",
-          "mqtt_topic_buy": "MQTT Topic for EVCC Buy Prices",
-          "mqtt_topic_sell": "MQTT Topic for EVCC Sell Prices"
+          "mqtt_enabled": "Enable MQTT Bridge",
+          "mqtt_topic_buy": "MQTT Topic for Buy Prices",
+          "mqtt_topic_sell": "MQTT Topic for Sell Prices",
+          "mqtt_48h_mode": "Enable 48h mode for MQTT",
+          "retry_attempts": "API retry attempts",
+          "retry_delay": "API retry delay (seconds)"
         }
       }
     }
@@ -40,7 +46,19 @@
   "entity": {
     "sensor": {
       "next_hour": "Next hour",
-      "using_cached_data": "Using cached data"
+      "using_cached_data": "Using cached data",
+      "all_prices": "All prices",
+      "best_prices": "Best prices",
+      "worst_prices": "Worst prices",
+      "best_count": "Best count",
+      "worst_count": "Worst count",
+      "price_count": "Price count",
+      "last_updated": "Last updated",
+      "avg_price": "Average price today",
+      "avg_price_remaining": "Average price (remaining)",
+      "avg_price_full_day": "Average price (full day)",
+      "tomorrow_available": "Tomorrow prices available",
+      "mqtt_price_count": "MQTT price count"
     }
   },
   "mqtt": {
@@ -57,6 +75,25 @@
     "no_price_next_hour": "No price found for next hour: {next_hour}",
     "retry_attempt": "Retry {retry}/{max_retries} after error: {error} (delay: {delay}s)",
     "timeout_after_retries": "Timeout fetching {price_type} data from API after {retries} retries",
-    "api_timeout_message": "API timeout after {timeout} seconds (tried {retries} times)"
+    "api_timeout_message": "API timeout after {timeout} seconds (tried {retries} times)",
+    "api_error_401": "API authentication failed for {price_type} - invalid API key",
+    "api_error_401_user": "API authentication failed - invalid API key",
+    "api_error_403": "API access forbidden for {price_type} - permissions issue",
+    "api_error_403_user": "API access forbidden - check permissions",
+    "api_error_404": "API endpoint not found for {price_type} - check URL",
+    "api_error_404_user": "API endpoint not found",
+    "api_error_429": "API rate limit exceeded for {price_type}",
+    "api_error_429_user": "API rate limit exceeded - try again later",
+    "api_error_502": "API Gateway error (502) for {price_type} - server may be down",
+    "api_error_502_user": "API Gateway error (502) - server may be down",
+    "api_error_5xx": "API server error ({status}) for {price_type} - server issue",
+    "api_error_5xx_user": "API server error ({status}) - server issue",
+    "api_error_generic": "API error {status} for {price_type}: {error}",
+    "api_error_generic_user": "API error {status}: {error}",
+    "network_error": "Network error fetching {price_type} data: {error}",
+    "network_error_user": "Network error: {error}",
+    "unexpected_error": "Unexpected error fetching {price_type} data: {error}",
+    "unexpected_error_user": "Error: {error}",
+    "using_cache": "Using cached data from previous update due to API failure"
   }
 }
