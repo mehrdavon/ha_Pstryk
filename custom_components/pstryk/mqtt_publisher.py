@@ -104,75 +104,119 @@ class PstrykMqttPublisher:
         # First, check if we're in 48h mode
         mqtt_48h_mode = self.hass.data[DOMAIN].get(f"{self.entry_id}_mqtt_48h_mode", False)
         
-        # Get current date for comparison
-        now = dt_util.as_local(dt_util.utcnow())
-        today_str = now.strftime("%Y-%m-%d")
-        tomorrow_str = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+        # Get current date for comparison - in local time
+        now_local = dt_util.as_local(dt_util.utcnow())
+        today_date = now_local.date()
+        tomorrow_date = (now_local + timedelta(days=1)).date()
         
-        # Get the appropriate price list based on mode
-        if mqtt_48h_mode:
-            price_list = prices_data.get("prices", [])
-            
-            # In 48h mode, we need to check if tomorrow's data is valid
-            # Separate today and tomorrow prices
-            today_prices = [p for p in price_list if p.get("start", "").startswith(today_str)]
-            tomorrow_prices = [p for p in price_list if p.get("start", "").startswith(tomorrow_str)]
-            
-            # Always include today's prices
-            prices_to_process = today_prices.copy()
-            
-            # Only include tomorrow if the data looks valid
-            if tomorrow_prices and self._is_day_data_valid(tomorrow_prices):
-                prices_to_process.extend(tomorrow_prices)
-                _LOGGER.info(f"Including {len(tomorrow_prices)} tomorrow prices in MQTT publish")
-            else:
-                if tomorrow_prices:
-                    _LOGGER.info(f"Excluding {len(tomorrow_prices)} tomorrow prices from MQTT - appear to be placeholders")
-                else:
-                    _LOGGER.debug("No tomorrow prices available for MQTT publish")
-        else:
-            # In normal mode, use only today's prices
-            prices_to_process = prices_data.get("prices_today", [])
-            
-        # Process the selected prices
-        for price_entry in prices_to_process:
+        # Get all prices from coordinator
+        all_prices = prices_data.get("prices", [])
+        
+        # Process prices and group by date
+        prices_by_date = {}
+        for price_entry in all_prices:
             try:
                 if "start" not in price_entry or "price" not in price_entry:
                     continue
                     
-                # Validate price is a number
-                try:
-                    price_value = float(price_entry["price"])
-                except (TypeError, ValueError):
-                    _LOGGER.warning("Invalid price value: %s", price_entry.get("price"))
+                # Parse the datetime (it's already in local time from coordinator)
+                price_datetime = dt_util.parse_datetime(price_entry["start"])
+                if not price_datetime:
                     continue
                     
-                # Parse local time and convert to UTC ISO format
-                local_dt = dt_util.parse_datetime(price_entry["start"])
-                if not local_dt:
-                    continue
+                # Ensure it's local time
+                price_datetime_local = dt_util.as_local(price_datetime)
+                price_date = price_datetime_local.date()
+                
+                if price_date not in prices_by_date:
+                    prices_by_date[price_date] = []
                     
-                utc_dt = dt_util.as_utc(local_dt)
+                prices_by_date[price_date].append(price_entry)
                 
-                # Calculate end time (1 hour later)
-                end_dt = utc_dt + timedelta(hours=1)
-                
-                # Format times in ISO format with Z suffix for UTC
-                start_str = utc_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-                end_str = end_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-                
-                # EVCC w trybie custom pokazuje ceny jako "gr" (grosze), 
-                price_value = price_value / 1
-                
-                formatted_prices.append({
-                    "start": start_str,
-                    "end": end_str,
-                    "value": price_value
-                })
             except Exception as e:
-                _LOGGER.error("Error formatting price for EVCC: %s", str(e))
+                _LOGGER.error("Error processing price entry: %s", str(e))
+        
+        # Determine which days to include
+        days_to_include = []
+        
+        if mqtt_48h_mode:
+            # In 48h mode, include today and tomorrow
+            if today_date in prices_by_date:
+                days_to_include.append(today_date)
+            
+            if tomorrow_date in prices_by_date:
+                # Check if tomorrow's data is valid
+                tomorrow_prices = prices_by_date[tomorrow_date]
+                if self._is_day_data_valid(tomorrow_prices):
+                    days_to_include.append(tomorrow_date)
+                    _LOGGER.info(f"Including {len(tomorrow_prices)} tomorrow prices in MQTT publish")
+                else:
+                    _LOGGER.info(f"Excluding tomorrow prices from MQTT - appear to be placeholders or incomplete")
+        else:
+            # In 24h mode, only include today
+            if today_date in prices_by_date:
+                days_to_include.append(today_date)
+        
+        # Process selected days
+        for date_to_include in sorted(days_to_include):
+            day_prices = prices_by_date.get(date_to_include, [])
+            
+            # Sort by time to ensure correct order
+            day_prices.sort(key=lambda x: x["start"])
+            
+            for price_entry in day_prices:
+                try:
+                    # Validate price is a number
+                    try:
+                        price_value = float(price_entry["price"])
+                    except (TypeError, ValueError):
+                        _LOGGER.warning("Invalid price value: %s", price_entry.get("price"))
+                        continue
+                        
+                    # Parse local time and convert to UTC ISO format
+                    local_dt = dt_util.parse_datetime(price_entry["start"])
+                    if not local_dt:
+                        continue
+                        
+                    # Ensure it's local time and convert to UTC
+                    local_dt = dt_util.as_local(local_dt)
+                    utc_dt = dt_util.as_utc(local_dt)
+                    
+                    # Calculate end time (1 hour later)
+                    end_dt = utc_dt + timedelta(hours=1)
+                    
+                    # Format times in ISO format with Z suffix for UTC
+                    start_str = utc_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    end_str = end_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    
+                    formatted_prices.append({
+                        "start": start_str,
+                        "end": end_str,
+                        "value": price_value
+                    })
+                except Exception as e:
+                    _LOGGER.error("Error formatting price for EVCC: %s", str(e))
+        
+        # Log summary
+        if formatted_prices:
+            first_time = formatted_prices[0]["start"]
+            last_time = formatted_prices[-1]["start"]
+            _LOGGER.debug(f"Formatted {len(formatted_prices)} prices for MQTT from {first_time} to {last_time}")
+            
+            # Verify we have complete days
+            hours_by_date = {}
+            for fp in formatted_prices:
+                date_part = fp["start"][:10]  # YYYY-MM-DD
+                if date_part not in hours_by_date:
+                    hours_by_date[date_part] = 0
+                hours_by_date[date_part] += 1
                 
-        _LOGGER.debug(f"Formatted {len(formatted_prices)} prices for MQTT from {len(prices_to_process)} input prices")
+            for date, hours in hours_by_date.items():
+                if hours != 24:
+                    _LOGGER.warning(f"Incomplete day {date}: only {hours} hours instead of 24")
+        else:
+            _LOGGER.warning("No prices formatted for MQTT")
+                    
         return formatted_prices
 
     async def publish_prices(self):
