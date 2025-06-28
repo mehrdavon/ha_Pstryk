@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -46,6 +47,7 @@ async def async_get_config_entry_diagnostics(
         },
         "coordinators": {},
         "mqtt_status": {},
+        "utility_meters": {},
     }
 
     # Check MQTT status
@@ -112,8 +114,52 @@ async def async_get_config_entry_diagnostics(
 
     # Check if MQTT integration is available
     diagnostics_data["mqtt_integration_available"] = hass.services.has_service("mqtt", "publish")
-
-    # Add missing import
-    from datetime import timedelta
+    
+    # Check average price sensors
+    for price_type in ("buy", "sell"):
+        for period in ("monthly", "yearly"):
+            entity_id = f"sensor.pstryk_{price_type}_{period}_average"
+            state = hass.states.get(entity_id)
+            
+            if state:
+                meter_data = {
+                    "state": state.state,
+                    "last_reset": state.attributes.get("Last reset", "Unknown"),
+                    "price_count": state.attributes.get("Price count", 0),
+                    "price_sum": state.attributes.get("Price sum", 0),
+                    "available": state.state not in ["unknown", "unavailable"],
+                }
+                diagnostics_data["utility_meters"][f"{price_type}_{period}_average"] = meter_data
+    
+    # Check financial balance sensors
+    for period in ("daily", "monthly", "yearly"):
+        entity_id = f"sensor.pstryk_{period}_financial_balance"
+        state = hass.states.get(entity_id)
+        
+        if state:
+            balance_data = {
+                "state": state.state,
+                "buy_cost": state.attributes.get("Buy cost", 0),
+                "sell_revenue": state.attributes.get("Sell revenue", 0),
+                "balance": state.attributes.get("Balance", 0),
+                "buy_cost": state.attributes.get("Buy cost", 0),
+                "distribution_cost": state.attributes.get("Distribution cost", 0),
+                "excise": state.attributes.get("Excise", 0),
+                "vat": state.attributes.get("VAT", 0),
+                "is_live": state.attributes.get("is_live", False),
+                "available": state.state not in ["unknown", "unavailable"],
+            }
+            diagnostics_data["utility_meters"][f"financial_balance_{period}"] = balance_data
+            
+    # Check cost coordinator
+    cost_coordinator = hass.data[DOMAIN].get(f"{entry.entry_id}_cost")
+    if cost_coordinator and cost_coordinator.data:
+        diagnostics_data["cost_coordinator"] = {
+            "last_update_success": cost_coordinator.last_update_success,
+            "data_available": cost_coordinator.data is not None,
+            "daily_balance": cost_coordinator.data.get("daily", {}).get("total_balance"),
+            "monthly_balance": cost_coordinator.data.get("monthly", {}).get("total_balance"),
+            "yearly_balance": cost_coordinator.data.get("yearly", {}).get("total_balance"),
+        }
 
     return diagnostics_data
