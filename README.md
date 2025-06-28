@@ -58,7 +58,7 @@ logo.png (opcjonalnie)
 ## Scrnshoty
 
 ![{053A01E2-21A0-4D49-B0DB-3F7E650577AB}](https://github.com/user-attachments/assets/92c216e5-2a97-408a-aec4-c0cb50eba5fb)
-![{34821286-F16C-496F-B87A-D2B534190B42}](https://github.com/user-attachments/assets/9fe65b19-dd5b-4d4f-bf0e-6980e41fb1f0)
+![{9074A93F-0C5A-416F-BE58-A0C947A21781}](https://github.com/user-attachments/assets/e0cfd1d5-a35d-42aa-8ea4-d01b014b4fbc)
 ![{F57D03A2-95A1-4A08-B172-5C476C608624}](https://github.com/user-attachments/assets/de1bf119-6775-4c07-98b2-06db8a4f5b2c)
 ![{DAC0F8E9-63AB-4195-BB26-25C92E1D2270}](https://github.com/user-attachments/assets/e2f1b6ea-c6c9-49c9-a992-f3a759ea2ad8)
 
