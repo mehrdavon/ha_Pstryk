@@ -9,21 +9,23 @@ Integracja dla Home Assistant umożliwiająca śledzenie aktualnych cen energii 
 
 ## Funkcje  
 - 🔌 Aktualna cena kupna i sprzedaży energii  
-- 📅 Tabela 24h z prognozowanymi cenami  
+- 📅 Tabela 24h z prognozowanymi cenami dla sensora API  
+- 📆 Tabela 48h z prognozowanymi cenami dla sensora MQTT  
 - ⚙️ Konfigurowalna liczba "najlepszych godzin"  
 - 🔻 Konfigurowalna liczba "najgorszych godzin"  
 - 🕒 Cena w następnej godzinie  
+- 📉 Średnia cena z pozostałej ilości godzin do końca doby  
+- 🌅 Średnia cena wschód/zachód  
 - 🕰️ Automatyczna konwersja czasu UTC → lokalny  
 - 🔄 Dane są aktualizowane minutę po pełnej godzinie  
-- 🛡️ Debug i logowanie  
 - 🧩 Konfiguracja z poziomu integracji  
 - 🔑 Walidacja klucza API / Cache danych / Zabezpieczenie przed timeoutem API  
-- 📡 Integracja wystawia po lokalnym MQTT 
+- 📡 Integracja wystawia po lokalnym MQTT tablice cen w natywnym formacie EVCC  
+- 📊 Średnia zakupu oraz sprzedaży - miesięczna/roczna  
+- 📈 Bilans miesięczny/roczny  
+- 🛡️ Debug i logowanie  
 
 
-## TODO
--
-Taryfy dla Victron MQTT 
 ## Instalacja
 
 ### Metoda 1: Via HACS
