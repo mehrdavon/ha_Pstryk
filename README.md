@@ -1,3 +1,7 @@
+dev support:
+💡 Odbierz 50 zł na prąd w Pstryk!
+Użyj mojego kodu E3WOTQ w koszyku w aplikacji. Bonus trafi do Twojego Portfela Pstryk po pierwszej opłaconej fakturze!
+
 # Integracja Home Assistant z Pstryk API
 
 !!! Dedykowana Karta do integracji:
