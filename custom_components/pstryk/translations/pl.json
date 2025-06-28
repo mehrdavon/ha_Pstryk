@@ -2,20 +2,57 @@
   "config": {
     "step": {
       "user": {
-        "title": "Pstryk Energy",
-        "description": "Konfiguracja integracji cen energii Pstryk",
+        "title": "Konfiguracja API",
+        "description": "Połącz z usługą Pstryk Energy",
         "data": {
-          "api_key": "Klucz API",
+          "api_key": "Klucz API"
+        },
+        "data_description": {
+          "api_key": "Twój klucz API Pstryk Energy do uwierzytelnienia"
+        }
+      },
+      "price_settings": {
+        "title": "Monitorowanie Cen",
+        "description": "Skonfiguruj ile godzin najlepszych i najgorszych cen śledzić",
+        "data": {
           "buy_top": "Liczba najlepszych cen zakupu",
           "sell_top": "Liczba najlepszych cen sprzedaży",
           "buy_worst": "Liczba najgorszych cen zakupu",
-          "sell_worst": "Liczba najgorszych cen sprzedaży",
+          "sell_worst": "Liczba najgorszych cen sprzedaży"
+        },
+        "data_description": {
+          "buy_top": "Godziny z najtańszymi cenami zakupu do wyróżnienia (1-24)",
+          "sell_top": "Godziny z najwyższymi cenami sprzedaży do wyróżnienia (1-24)",
+          "buy_worst": "Godziny z najdroższymi cenami zakupu do wyróżnienia (1-24)",
+          "sell_worst": "Godziny z najniższymi cenami sprzedaży do wyróżnienia (1-24)"
+        }
+      },
+      "mqtt_settings": {
+        "title": "Mostek MQTT",
+        "description": "Skonfiguruj integrację MQTT dla systemów zewnętrznych",
+        "data": {
           "mqtt_enabled": "Włącz mostek MQTT",
           "mqtt_topic_buy": "Temat MQTT dla cen zakupu",
           "mqtt_topic_sell": "Temat MQTT dla cen sprzedaży",
-          "mqtt_48h_mode": "Włącz tryb 48h dla MQTT",
-          "retry_attempts": "Liczba prób połączenia z API",
+          "mqtt_48h_mode": "Włącz tryb 48h"
+        },
+        "data_description": {
+          "mqtt_enabled": "Publikuj ceny do MQTT dla systemów zewnętrznych jak EVCC",
+          "mqtt_topic_buy": "Temat MQTT gdzie będą publikowane ceny zakupu",
+          "mqtt_topic_sell": "Temat MQTT gdzie będą publikowane ceny sprzedaży",
+          "mqtt_48h_mode": "Publikuj 48 godzin cen (dziś + jutro)"
+        }
+      },
+      "api_retry": {
+        "title": "Niezawodność API",
+        "description": "Skonfiguruj zachowanie przy błędach API",
+        "data": {
+          "retry_attempts": "Liczba prób",
           "retry_delay": "Opóźnienie między próbami (sekundy)"
+        },
+        "data_description": {
+          "retry_attempts": "Ile razy ponawiać nieudane żądania API",
+          "retry_delay": "Czas oczekiwania między próbami"
         }
       }
     },
@@ -28,17 +65,50 @@
     "step": {
       "init": {
         "title": "Opcje Pstryk Energy",
+        "description": "Zmodyfikuj konfigurację Pstryk Energy"
+      },
+      "price_settings": {
+        "title": "Ustawienia Monitorowania Cen",
+        "description": "Skonfiguruj ile godzin najlepszych i najgorszych cen śledzić",
         "data": {
           "buy_top": "Liczba najlepszych cen zakupu",
           "sell_top": "Liczba najlepszych cen sprzedaży",
           "buy_worst": "Liczba najgorszych cen zakupu",
-          "sell_worst": "Liczba najgorszych cen sprzedaży",
+          "sell_worst": "Liczba najgorszych cen sprzedaży"
+        },
+        "data_description": {
+          "buy_top": "Godziny z najtańszymi cenami zakupu do wyróżnienia (1-24)",
+          "sell_top": "Godziny z najwyższymi cenami sprzedaży do wyróżnienia (1-24)",
+          "buy_worst": "Godziny z najdroższymi cenami zakupu do wyróżnienia (1-24)",
+          "sell_worst": "Godziny z najniższymi cenami sprzedaży do wyróżnienia (1-24)"
+        }
+      },
+      "mqtt_settings": {
+        "title": "Konfiguracja Mostka MQTT",
+        "description": "Skonfiguruj integrację MQTT dla systemów zewnętrznych",
+        "data": {
           "mqtt_enabled": "Włącz mostek MQTT",
           "mqtt_topic_buy": "Temat MQTT dla cen zakupu",
           "mqtt_topic_sell": "Temat MQTT dla cen sprzedaży",
-          "mqtt_48h_mode": "Włącz tryb 48h dla MQTT",
+          "mqtt_48h_mode": "Włącz tryb 48h"
+        },
+        "data_description": {
+          "mqtt_enabled": "Publikuj ceny do MQTT dla systemów zewnętrznych jak EVCC",
+          "mqtt_topic_buy": "Temat MQTT gdzie będą publikowane ceny zakupu",
+          "mqtt_topic_sell": "Temat MQTT gdzie będą publikowane ceny sprzedaży",
+          "mqtt_48h_mode": "Publikuj 48 godzin cen (dziś + jutro)"
+        }
+      },
+      "api_settings": {
+        "title": "Konfiguracja API",
+        "description": "Skonfiguruj zachowanie przy błędach API dla lepszej niezawodności",
+        "data": {
           "retry_attempts": "Liczba prób połączenia z API",
           "retry_delay": "Opóźnienie między próbami (sekundy)"
+        },
+        "data_description": {
+          "retry_attempts": "Ile razy ponawiać żądania API w przypadku błędu",
+          "retry_delay": "Czas oczekiwania między próbami połączenia z API"
         }
       }
     }
@@ -57,8 +127,30 @@
       "avg_price": "Średnia cena dziś",
       "avg_price_remaining": "Średnia cena pozostałe",
       "avg_price_full_day": "Średnia cena cały dzień",
+      "avg_price_sunrise_sunset": "Średnia cena dziś w/z",
       "tomorrow_available": "Dostępność cen na jutro",
-      "mqtt_price_count": "Liczba cen MQTT"
+      "mqtt_price_count": "Liczba cen MQTT",
+      "last_reset": "Ostatni reset",
+      "price_sum": "Suma cen",
+      "period": "Okres",
+      "period_monthly": "Miesięczny",
+      "period_yearly": "Roczny",
+      "financial_balance": "Bilans finansowy",
+      "buy_cost": "Koszt zakupu",
+      "sell_revenue": "Przychód ze sprzedaży",
+      "energy_bought": "Zakupiona energia",
+      "energy_sold": "Sprzedana energia",
+      "balance": "Saldo",
+      "period_daily": "Dzienny",
+      "buy_cost": "Koszt zakupu",
+      "distribution_cost": "Koszt dystrybucji",
+      "excise": "Akcyza",
+      "vat": "VAT",
+      "calculation_method": "Metoda obliczania",
+      "total_cost": "Całkowity koszt",
+      "total_revenue": "Całkowity przychód",
+      "service_cost": "Koszt obsługi",
+      "is_live": "Aktualny okres"
     }
   },
   "mqtt": {
