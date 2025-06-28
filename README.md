@@ -68,10 +68,18 @@ logo.png (opcjonalnie)
 
 ## Użycie
 ### Dostępne encje
-| Nazwa encji                          | Opis                          |
-|--------------------------------------|-------------------------------|
-| `sensor.pstryk_current_buy_price`    | Aktualna cena kupna + tabela           |
-| `sensor.pstryk_current_sell_price`   | Aktualna cena sprzedaży   + tabela     |
+
+| Nazwa encji                             | Opis                                         |
+|-----------------------------------------|----------------------------------------------|
+| `sensor.pstryk_current_buy_price`       | Aktualna cena kupna energii + tabela         |
+| `sensor.pstryk_current_sell_price`      | Aktualna cena sprzedaży energii + tabela     |
+| `sensor.pstryk_buy_monthly_average`     | Średnia miesięczna cena kupna energii        |
+| `sensor.pstryk_buy_yearly_average`      | Średnia roczna cena kupna energii            |
+| `sensor.pstryk_sell_monthly_average`    | Średnia miesięczna cena sprzedaży energii    |
+| `sensor.pstryk_sell_yearly_average`     | Średnia roczna cena sprzedaży energii        |
+| `sensor.pstryk_daily_financial_balance` | Dzienny bilans kupna/sprzedaży               |
+| `sensor.pstryk_monthly_financial_balance`| Miesięczny bilans kupna/sprzedaży            |
+| `sensor.pstryk_yearly_financial_balance` | Roczny bilans kupna/sprzedaży                |
 
 
 Przykładowa Automatyzacja:
