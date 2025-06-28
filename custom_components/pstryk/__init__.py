@@ -39,7 +39,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not entry.update_listeners:
         entry.async_on_unload(entry.add_update_listener(async_reload_entry))
     
-    await hass.config_entries.async_forward_entry_setup(entry, "sensor")
+    # Forward to sensor platform - use new API with list
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
     _LOGGER.debug("Pstryk entry setup: %s", entry.entry_id)
     
     # Setup MQTT publisher if enabled
@@ -80,8 +81,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await mqtt_publisher.async_initialize()
             
             # Wait for coordinators to be created by sensor platform
-            max_wait = 30  # Maximum 30 seconds wait
-            wait_interval = 1  # Check every second
+            max_wait = 60  # Increased timeout to 60 seconds
+            wait_interval = 2  # Check every 2 seconds
             waited = 0
             
             while waited < max_wait:
@@ -89,7 +90,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 sell_coordinator = hass.data[DOMAIN].get(f"{entry.entry_id}_sell")
                 
                 if buy_coordinator and sell_coordinator:
-                    _LOGGER.debug("Coordinators ready, starting MQTT periodic publishing")
+                    _LOGGER.debug("Coordinators ready after %d seconds, starting MQTT periodic publishing", waited)
                     break
                     
                 await asyncio.sleep(wait_interval)
@@ -107,7 +108,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
         
         # Schedule the initialization to happen shortly after setup is complete
-        hass.async_create_task(start_mqtt_publisher(None))
+        # Add delay before starting
+        async def delayed_start():
+            await asyncio.sleep(5)  # Wait 5 seconds before starting
+            await start_mqtt_publisher(None)
+            
+        hass.async_create_task(delayed_start())
         
         _LOGGER.info("EVCC MQTT Bridge enabled for Pstryk Energy (48h mode: %s), publishing to %s and %s", 
                     mqtt_48h_mode, mqtt_topic_buy, mqtt_topic_sell)
@@ -148,6 +154,19 @@ async def _cleanup_coordinators(hass: HomeAssistant, entry: ConfigEntry) -> None
             # Remove from hass data
             hass.data[DOMAIN].pop(key, None)
     
+    # Clean up cost coordinator
+    cost_key = f"{entry.entry_id}_cost"
+    cost_coordinator = hass.data[DOMAIN].get(cost_key)
+    if cost_coordinator:
+        _LOGGER.debug("Cleaning up cost coordinator for entry %s", entry.entry_id)
+        if hasattr(cost_coordinator, '_unsub_hourly') and cost_coordinator._unsub_hourly:
+            cost_coordinator._unsub_hourly()
+            cost_coordinator._unsub_hourly = None
+        if hasattr(cost_coordinator, '_unsub_midnight') and cost_coordinator._unsub_midnight:
+            cost_coordinator._unsub_midnight()
+            cost_coordinator._unsub_midnight = None
+        hass.data[DOMAIN].pop(cost_key, None)
+    
     # Clean up mqtt 48h mode flag
     hass.data[DOMAIN].pop(f"{entry.entry_id}_mqtt_48h_mode", None)
 
@@ -156,7 +175,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # First cancel coordinators' scheduled updates
     await _cleanup_coordinators(hass, entry)
     
-    # Then unload the platform
+    # Then unload the platform - use async_forward_entry_unload (without 's')
     unload_ok = await hass.config_entries.async_forward_entry_unload(entry, "sensor")
     
     # Finally clean up data
