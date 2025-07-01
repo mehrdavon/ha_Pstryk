@@ -1,7 +1,7 @@
 {
   "domain": "pstryk",
   "name": "Pstryk Energy",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "codeowners": ["@balgerion"],
   "requirements": ["aiohttp>=3.7"],
   "dependencies": ["mqtt"],
