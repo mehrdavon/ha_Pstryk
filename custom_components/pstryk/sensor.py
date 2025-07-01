@@ -100,7 +100,7 @@ async def async_setup_entry(
         coordinators.append((coordinator, price_type, key))
         
     # Create cost coordinator
-    cost_coordinator = PstrykCostDataUpdateCoordinator(hass, api_key)
+    cost_coordinator = PstrykCostDataUpdateCoordinator(hass, api_key, retry_attempts, retry_delay)
     coordinators.append((cost_coordinator, "cost", cost_key))
         
     # Initialize coordinators in parallel to save time
