@@ -12,31 +12,53 @@ from .const import (
     API_URL,
     ENERGY_COST_ENDPOINT,
     ENERGY_USAGE_ENDPOINT,
-    API_TIMEOUT
+    API_TIMEOUT,
+    CONF_RETRY_ATTEMPTS,
+    CONF_RETRY_DELAY,
+    DEFAULT_RETRY_ATTEMPTS,
+    DEFAULT_RETRY_DELAY
 )
+from .update_coordinator import ExponentialBackoffRetry
 
 _LOGGER = logging.getLogger(__name__)
 
 class PstrykCostDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching Pstryk energy cost data."""
     
-    def __init__(self, hass: HomeAssistant, api_key: str):
-        """Initialize."""
-        self.api_key = api_key
-        self._unsub_hourly = None
-        self._unsub_midnight = None
-        
-        super().__init__(
-            hass,
-            _LOGGER,
-            name=f"{DOMAIN}_cost",
-            update_interval=timedelta(hours=1),
-        )
-        
-        # Schedule hourly updates
-        self.schedule_hourly_update()
-        # Schedule midnight updates
-        self.schedule_midnight_update()
+    def __init__(self, hass: HomeAssistant, api_key: str, retry_attempts=None, retry_delay=None):
+            """Initialize."""
+            self.api_key = api_key
+            self._unsub_hourly = None
+            self._unsub_midnight = None
+            
+            # Get retry configuration from entry options
+            if retry_attempts is None or retry_delay is None:
+                # Try to find the config entry to get retry options
+                for entry in hass.config_entries.async_entries(DOMAIN):
+                    if entry.data.get("api_key") == api_key:
+                        retry_attempts = entry.options.get(CONF_RETRY_ATTEMPTS, DEFAULT_RETRY_ATTEMPTS)
+                        retry_delay = entry.options.get(CONF_RETRY_DELAY, DEFAULT_RETRY_DELAY)
+                        break
+                else:
+                    # Use defaults if no matching entry found
+                    retry_attempts = DEFAULT_RETRY_ATTEMPTS
+                    retry_delay = DEFAULT_RETRY_DELAY
+            
+            # Initialize retry mechanism with configurable values
+            self.retry_mechanism = ExponentialBackoffRetry(max_retries=retry_attempts, base_delay=retry_delay)
+            
+            super().__init__(
+                hass,
+                _LOGGER,
+                name=f"{DOMAIN}_cost",
+                update_interval=timedelta(hours=1),
+            )
+            
+            # Schedule hourly updates
+            self.schedule_hourly_update()
+            # Schedule midnight updates
+            self.schedule_midnight_update()
+
         
     async def _async_update_data(self):
             """Fetch energy cost data from API."""
@@ -170,70 +192,78 @@ class PstrykCostDataUpdateCoordinator(DataUpdateCoordinator):
 
 
     def _process_daily_data_simple(self, cost_data, usage_data):
-        """Simple daily data processor - directly use API values without complex logic."""
-        _LOGGER.info("=== SIMPLE DAILY DATA PROCESSOR ===")
-        
-        result = {
-            "frame": {},
-            "total_balance": 0,
-            "total_sold": 0,
-            "total_cost": 0,
-            "fae_usage": 0,
-            "rae_usage": 0
-        }
-        
-        # Find the live usage frame (current day)
-        if usage_data and usage_data.get("frames"):
-            _LOGGER.info(f"Processing {len(usage_data['frames'])} usage frames")
+            """Simple daily data processor - directly use API values without complex logic."""
+            _LOGGER.info("=== SIMPLE DAILY DATA PROCESSOR ===")
             
-            for i, frame in enumerate(usage_data["frames"]):
-                _LOGGER.info(f"Frame {i}: start={frame.get('start')}, "
-                           f"is_live={frame.get('is_live', False)}, "
-                           f"fae_usage={frame.get('fae_usage')}, "
-                           f"rae={frame.get('rae')}")
+            result = {
+                "frame": {},
+                "total_balance": 0,
+                "total_sold": 0,
+                "total_cost": 0,
+                "fae_usage": 0,
+                "rae_usage": 0
+            }
+            
+            live_date = None
+            
+            # Find the live usage frame (current day)
+            if usage_data and usage_data.get("frames"):
+                _LOGGER.info(f"Processing {len(usage_data['frames'])} usage frames")
                 
-                # Use the frame marked as is_live
-                if frame.get("is_live", False):
-                    result["fae_usage"] = frame.get("fae_usage", 0)
-                    result["rae_usage"] = frame.get("rae", 0)
-                    _LOGGER.info(f"*** FOUND LIVE FRAME: fae_usage={result['fae_usage']}, rae={result['rae_usage']} ***")
+                for i, frame in enumerate(usage_data["frames"]):
+                    _LOGGER.info(f"Frame {i}: start={frame.get('start')}, "
+                               f"is_live={frame.get('is_live', False)}, "
+                               f"fae_usage={frame.get('fae_usage')}, "
+                               f"rae={frame.get('rae')}")
                     
-                    # Store the live frame's date info for cost matching
-                    live_start = frame.get("start")
-                    if live_start:
-                        # Extract the date part for matching with cost data
-                        live_date = live_start.split("T")[0]
-                        _LOGGER.info(f"Live frame date: {live_date}")
-                    break
-        
-        # Find the corresponding cost frame for the same day
-        if cost_data and cost_data.get("frames"):
-            _LOGGER.info(f"Processing {len(cost_data['frames'])} cost frames")
+                    # Use the frame marked as is_live
+                    if frame.get("is_live", False):
+                        result["fae_usage"] = frame.get("fae_usage", 0)
+                        result["rae_usage"] = frame.get("rae", 0)
+                        _LOGGER.info(f"*** FOUND LIVE FRAME: fae_usage={result['fae_usage']}, rae={result['rae_usage']} ***")
+                        
+                        # Store the live frame's date info for cost matching
+                        live_start = frame.get("start")
+                        if live_start:
+                            # Extract the date part for matching with cost data
+                            live_date = live_start.split("T")[0]
+                            _LOGGER.info(f"Live frame date: {live_date}")
+                        break
             
-            # Look for the most recent cost frame with data
-            for frame in reversed(cost_data["frames"]):
-                frame_start = frame.get("start", "")
-                _LOGGER.info(f"Checking cost frame: start={frame_start}, "
-                           f"balance={frame.get('energy_balance_value', 0)}, "
-                           f"cost={frame.get('fae_cost', 0)}")
+            # Find the corresponding cost frame for the same day
+            if cost_data and cost_data.get("frames") and live_date:
+                _LOGGER.info(f"Processing {len(cost_data['frames'])} cost frames, looking for date: {live_date}")
                 
-                if (frame.get("energy_balance_value", 0) != 0 or 
-                    frame.get("fae_cost", 0) != 0 or
-                    frame.get("energy_sold_value", 0) != 0):
-                    result["frame"] = frame
-                    result["total_balance"] = frame.get("energy_balance_value", 0)
-                    result["total_sold"] = frame.get("energy_sold_value", 0)
-                    result["total_cost"] = abs(frame.get("fae_cost", 0))
-                    _LOGGER.info(f"Found cost frame with data: balance={result['total_balance']}, "
-                               f"cost={result['total_cost']}, sold={result['total_sold']}")
-                    break
-        
-        _LOGGER.info(f"=== FINAL RESULT: fae_usage={result['fae_usage']}, "
-                    f"rae_usage={result['rae_usage']}, "
-                    f"balance={result['total_balance']}, "
-                    f"cost={result['total_cost']}, "
-                    f"sold={result['total_sold']} ===")
-        return result
+                # Look for the cost frame that matches the live usage frame's date
+                for frame in cost_data["frames"]:
+                    frame_start = frame.get("start", "")
+                    frame_date = frame_start.split("T")[0] if frame_start else ""
+                    
+                    _LOGGER.info(f"Checking cost frame: start={frame_start}, date={frame_date}, "
+                               f"balance={frame.get('energy_balance_value', 0)}, "
+                               f"cost={frame.get('fae_cost', 0)}")
+                    
+                    # Match the date with the live frame's date
+                    if frame_date == live_date:
+                        result["frame"] = frame
+                        result["total_balance"] = frame.get("energy_balance_value", 0)
+                        result["total_sold"] = frame.get("energy_sold_value", 0)
+                        result["total_cost"] = abs(frame.get("fae_cost", 0))
+                        _LOGGER.info(f"*** MATCHED cost frame for date {live_date}: balance={result['total_balance']}, "
+                                   f"cost={result['total_cost']}, sold={result['total_sold']} ***")
+                        break
+                else:
+                    _LOGGER.warning(f"No cost frame found matching live date {live_date}")
+            elif not live_date:
+                _LOGGER.warning("No live frame found in usage data, cannot match cost frame")
+            
+            _LOGGER.info(f"=== FINAL RESULT: fae_usage={result['fae_usage']}, "
+                        f"rae_usage={result['rae_usage']}, "
+                        f"balance={result['total_balance']}, "
+                        f"cost={result['total_cost']}, "
+                        f"sold={result['total_sold']} ===")
+            return result
+
 
     
 
@@ -301,30 +331,39 @@ class PstrykCostDataUpdateCoordinator(DataUpdateCoordinator):
         return result
     
     async def _fetch_data(self, url):
-        """Fetch data from the API."""
-        try:
-            _LOGGER.info(f"Fetching data from URL: {url}")
-            async with aiohttp.ClientSession() as session:
-                async with async_timeout.timeout(API_TIMEOUT):
-                    resp = await session.get(
-                        url,
-                        headers={
-                            "Authorization": self.api_key,
-                            "Accept": "application/json"
-                        }
-                    )
-                    
-                    if resp.status != 200:
-                        error_text = await resp.text()
-                        _LOGGER.error("API error %s for URL %s: %s", resp.status, url, error_text)
-                        return None
+            """Fetch data from the API using retry mechanism."""
+            async def _make_api_request():
+                """Make the actual API request."""
+                _LOGGER.info(f"Fetching data from URL: {url}")
+                async with aiohttp.ClientSession() as session:
+                    async with async_timeout.timeout(API_TIMEOUT):
+                        resp = await session.get(
+                            url,
+                            headers={
+                                "Authorization": self.api_key,
+                                "Accept": "application/json"
+                            }
+                        )
                         
-                    data = await resp.json()
-                    _LOGGER.info(f"API response data: {data}")
-                    return data
-        except Exception as e:
-            _LOGGER.error("Error fetching from %s: %s", url, e)
-            return None
+                        if resp.status != 200:
+                            error_text = await resp.text()
+                            _LOGGER.error("API error %s for URL %s: %s", resp.status, url, error_text)
+                            raise UpdateFailed(f"API error {resp.status}: {error_text}")
+                            
+                        data = await resp.json()
+                        _LOGGER.info(f"API response data: {data}")
+                        return data
+            
+            try:
+                # Load translations for retry mechanism
+                await self.retry_mechanism.load_translations(self.hass)
+                
+                # Use retry mechanism to fetch data
+                return await self.retry_mechanism.execute(_make_api_request)
+            except Exception as e:
+                _LOGGER.error("Error fetching from %s after retries: %s", url, e)
+                return None
+
     
     def schedule_midnight_update(self):
         """Schedule midnight updates for daily reset."""
