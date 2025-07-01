@@ -161,5 +161,12 @@ async def async_get_config_entry_diagnostics(
             "monthly_balance": cost_coordinator.data.get("monthly", {}).get("total_balance"),
             "yearly_balance": cost_coordinator.data.get("yearly", {}).get("total_balance"),
         }
+        
+        # Check for retry configuration
+        if hasattr(cost_coordinator, 'retry_mechanism'):
+            diagnostics_data["cost_coordinator"]["retry_config"] = {
+                "max_retries": cost_coordinator.retry_mechanism.max_retries,
+                "base_delay": cost_coordinator.retry_mechanism.base_delay,
+            }
 
     return diagnostics_data
