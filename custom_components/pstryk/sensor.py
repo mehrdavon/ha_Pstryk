@@ -12,6 +12,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 from .update_coordinator import PstrykDataUpdateCoordinator
 from .energy_cost_coordinator import PstrykCostDataUpdateCoordinator
+from .carbon_footprint_coordinator import PstrykCarbonFootprintUpdateCoordinator
 from .const import (
     DOMAIN, 
     CONF_MQTT_48H_MODE,
@@ -102,6 +103,11 @@ async def async_setup_entry(
     # Create cost coordinator
     cost_coordinator = PstrykCostDataUpdateCoordinator(hass, api_key, retry_attempts, retry_delay)
     coordinators.append((cost_coordinator, "cost", cost_key))
+
+    # Create carbon footprint coordinator
+    carbon_key = f"{entry.entry_id}_carbon_footprint"
+    carbon_coordinator = PstrykCarbonFootprintUpdateCoordinator(hass, api_key, retry_attempts, retry_delay)
+    coordinators.append((carbon_coordinator, "carbon_footprint", carbon_key))
         
     # Initialize coordinators in parallel to save time
     initial_refresh_tasks = []
@@ -150,6 +156,11 @@ async def async_setup_entry(
             coordinator.schedule_hourly_update()
             coordinator.schedule_midnight_update()
 
+        # Schedule updates for carbon footprint coordinator
+        elif coordinator_type == "carbon_footprint":
+            coordinator.schedule_hourly_update()
+            coordinator.schedule_midnight_update()
+
         # Create price sensors
         if coordinator_type in ("buy", "sell"):
             top = buy_top if coordinator_type == "buy" else sell_top
@@ -179,6 +190,37 @@ async def async_setup_entry(
     ))
     entities.append(PstrykFinancialBalanceSensor(
         cost_coordinator, "yearly", entry.entry_id
+    ))
+
+    # Create energy usage sensors using cost coordinator
+    entities.append(PstrykEnergyUsageSensor(
+        cost_coordinator, "fae", "daily", entry.entry_id
+    ))
+    entities.append(PstrykEnergyUsageSensor(
+        cost_coordinator, "rae", "daily", entry.entry_id
+    ))
+    entities.append(PstrykEnergyUsageSensor(
+        cost_coordinator, "fae", "monthly", entry.entry_id
+    ))
+    entities.append(PstrykEnergyUsageSensor(
+        cost_coordinator, "rae", "monthly", entry.entry_id
+    ))
+    entities.append(PstrykEnergyUsageSensor(
+        cost_coordinator, "fae", "yearly", entry.entry_id
+    ))
+    entities.append(PstrykEnergyUsageSensor(
+        cost_coordinator, "rae", "yearly", entry.entry_id
+    ))
+
+    # Create carbon footprint sensors using carbon footprint coordinator
+    entities.append(PstrykCarbonFootprintSensor(
+        carbon_coordinator, "daily", entry.entry_id
+    ))
+    entities.append(PstrykCarbonFootprintSensor(
+        carbon_coordinator, "monthly", entry.entry_id
+    ))
+    entities.append(PstrykCarbonFootprintSensor(
+        carbon_coordinator, "yearly", entry.entry_id
     ))
 
     async_add_entities(entities, True)
@@ -741,6 +783,113 @@ class PstrykPriceSensor(CoordinatorEntity, SensorEntity):
         return self.coordinator.last_update_success and self.coordinator.data is not None
 
 
+class PstrykCarbonFootprintSensor(CoordinatorEntity, SensorEntity):
+    """Carbon footprint sensor showing CO2 emissions."""
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_device_class = SensorDeviceClass.GAS
+
+    def __init__(self, coordinator: PstrykCarbonFootprintUpdateCoordinator,
+                 period: str, entry_id: str):
+        """Initialize the carbon footprint sensor."""
+        super().__init__(coordinator)
+        self.period = period  # 'daily', 'monthly', or 'yearly'
+        self.entry_id = entry_id
+
+    @property
+    def name(self) -> str:
+        """Return the name of the sensor."""
+        period_name = _TRANSLATIONS_CACHE.get(
+            f"entity.sensor.period_{self.period}",
+            self.period.title()
+        )
+        return f"Pstryk {period_name} Carbon Footprint"
+
+    @property
+    def unique_id(self) -> str:
+        """Return unique ID."""
+        return f"{DOMAIN}_carbon_footprint_{self.period}"
+
+    @property
+    def device_info(self):
+        """Return device information."""
+        return {
+            "identifiers": {(DOMAIN, "pstryk_energy")},
+            "name": "Pstryk Energy",
+            "manufacturer": "Pstryk",
+            "model": "Energy Price Monitor",
+            "sw_version": "1.7.1",
+        }
+
+    @property
+    def native_value(self):
+        """Return the state of the sensor from API data."""
+        if not self.coordinator.data:
+            return None
+
+        period_data = self.coordinator.data.get(self.period)
+        if not period_data:
+            return None
+
+        return period_data.get("total_carbon_footprint", 0)
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        """Return the unit of measurement."""
+        return "gCO2eq"
+
+    @property
+    def icon(self) -> str:
+        """Return the icon."""
+        return "mdi:leaf"
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return extra state attributes."""
+        if not self.coordinator.data or not self.coordinator.data.get(self.period):
+            return {}
+
+        period_data = self.coordinator.data.get(self.period)
+        frame = period_data.get("frame", {})
+
+        # Get translated attribute names
+        period_key = _TRANSLATIONS_CACHE.get(
+            "entity.sensor.period",
+            "Period"
+        )
+        last_updated_key = _TRANSLATIONS_CACHE.get(
+            "entity.sensor.last_updated",
+            "Last updated"
+        )
+
+        attrs = {
+            period_key: self.period,
+        }
+
+        # Add frame info if available
+        if frame:
+            start_utc = frame.get("start")
+            end_utc = frame.get("end")
+
+            start_local = dt_util.as_local(dt_util.parse_datetime(start_utc)) if start_utc else None
+            end_local = dt_util.as_local(dt_util.parse_datetime(end_utc)) if end_utc else None
+
+            attrs.update({
+                "start": start_local.strftime("%Y-%m-%d") if start_local else None,
+                "end": end_local.strftime("%Y-%m-%d") if end_local else None,
+            })
+
+        # Add last updated
+        now = dt_util.now()
+        attrs[last_updated_key] = now.strftime("%Y-%m-%d %H:%M:%S")
+
+        return attrs
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return self.coordinator.last_update_success and self.coordinator.data is not None
+
+
 class PstrykAveragePriceSensor(RestoreEntity, SensorEntity):
     """Average price sensor using weighted averages from API data."""
     _attr_state_class = SensorStateClass.MEASUREMENT
@@ -1083,7 +1232,342 @@ class PstrykFinancialBalanceSensor(CoordinatorEntity, SensorEntity):
         attrs[last_updated_key] = now.strftime("%Y-%m-%d %H:%M:%S")
         
         return attrs
-        
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return self.coordinator.last_update_success and self.coordinator.data is not None
+
+
+class PstrykCarbonFootprintSensor(CoordinatorEntity, SensorEntity):
+    """Carbon footprint sensor showing CO2 emissions."""
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_device_class = SensorDeviceClass.GAS
+
+    def __init__(self, coordinator: PstrykCarbonFootprintUpdateCoordinator,
+                 period: str, entry_id: str):
+        """Initialize the carbon footprint sensor."""
+        super().__init__(coordinator)
+        self.period = period  # 'daily', 'monthly', or 'yearly'
+        self.entry_id = entry_id
+
+    @property
+    def name(self) -> str:
+        """Return the name of the sensor."""
+        period_name = _TRANSLATIONS_CACHE.get(
+            f"entity.sensor.period_{self.period}",
+            self.period.title()
+        )
+        return f"Pstryk {period_name} Carbon Footprint"
+
+    @property
+    def unique_id(self) -> str:
+        """Return unique ID."""
+        return f"{DOMAIN}_carbon_footprint_{self.period}"
+
+    @property
+    def device_info(self):
+        """Return device information."""
+        return {
+            "identifiers": {(DOMAIN, "pstryk_energy")},
+            "name": "Pstryk Energy",
+            "manufacturer": "Pstryk",
+            "model": "Energy Price Monitor",
+            "sw_version": "1.7.1",
+        }
+
+    @property
+    def native_value(self):
+        """Return the state of the sensor from API data."""
+        if not self.coordinator.data:
+            return None
+
+        period_data = self.coordinator.data.get(self.period)
+        if not period_data:
+            return None
+
+        return period_data.get("total_carbon_footprint", 0)
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        """Return the unit of measurement."""
+        return "gCO2eq"
+
+    @property
+    def icon(self) -> str:
+        """Return the icon."""
+        return "mdi:leaf"
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return extra state attributes."""
+        if not self.coordinator.data or not self.coordinator.data.get(self.period):
+            return {}
+
+        period_data = self.coordinator.data.get(self.period)
+        frame = period_data.get("frame", {})
+
+        # Get translated attribute names
+        period_key = _TRANSLATIONS_CACHE.get(
+            "entity.sensor.period",
+            "Period"
+        )
+        last_updated_key = _TRANSLATIONS_CACHE.get(
+            "entity.sensor.last_updated",
+            "Last updated"
+        )
+
+        attrs = {
+            period_key: self.period,
+        }
+
+        # Add frame info if available
+        if frame:
+            start_utc = frame.get("start")
+            end_utc = frame.get("end")
+
+            start_local = dt_util.as_local(dt_util.parse_datetime(start_utc)) if start_utc else None
+            end_local = dt_util.as_local(dt_util.parse_datetime(end_utc)) if end_utc else None
+
+            attrs.update({
+                "start": start_local.strftime("%Y-%m-%d") if start_local else None,
+                "end": end_local.strftime("%Y-%m-%d") if end_local else None,
+            })
+
+        # Add last updated
+        now = dt_util.now()
+        attrs[last_updated_key] = now.strftime("%Y-%m-%d %H:%M:%S")
+
+        return attrs
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return self.coordinator.last_update_success and self.coordinator.data is not None
+
+
+class PstrykEnergyUsageSensor(CoordinatorEntity, SensorEntity):
+    """Energy usage sensor for FAE (consumed) and RAE (produced) energy."""
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_device_class = SensorDeviceClass.ENERGY
+
+    def __init__(self, coordinator: PstrykCostDataUpdateCoordinator,
+                 usage_type: str, period: str, entry_id: str):
+        """Initialize the energy usage sensor."""
+        super().__init__(coordinator)
+        self.usage_type = usage_type  # 'fae' (consumed) or 'rae' (produced)
+        self.period = period  # 'daily', 'monthly', or 'yearly'
+        self.entry_id = entry_id
+
+    @property
+    def name(self) -> str:
+        """Return the name of the sensor."""
+        period_name = _TRANSLATIONS_CACHE.get(
+            f"entity.sensor.period_{self.period}",
+            self.period.title()
+        )
+        usage_name = "Energy Consumed" if self.usage_type == "fae" else "Energy Produced"
+        return f"Pstryk {period_name} {usage_name}"
+
+    @property
+    def unique_id(self) -> str:
+        """Return unique ID."""
+        return f"{DOMAIN}_energy_usage_{self.usage_type}_{self.period}"
+
+    @property
+    def device_info(self):
+        """Return device information."""
+        return {
+            "identifiers": {(DOMAIN, "pstryk_energy")},
+            "name": "Pstryk Energy",
+            "manufacturer": "Pstryk",
+            "model": "Energy Price Monitor",
+            "sw_version": "1.7.1",
+        }
+
+    @property
+    def native_value(self):
+        """Return the state of the sensor from API data."""
+        if not self.coordinator.data:
+            return None
+
+        period_data = self.coordinator.data.get(self.period)
+        if not period_data:
+            return None
+
+        # Get usage based on type
+        if self.usage_type == "fae":
+            return period_data.get("fae_usage", 0)
+        else:  # rae
+            return period_data.get("rae_usage", 0)
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        """Return the unit of measurement."""
+        return "kWh"
+
+    @property
+    def icon(self) -> str:
+        """Return the icon based on usage type."""
+        if self.usage_type == "fae":
+            return "mdi:lightning-bolt"  # Consumed energy
+        else:
+            return "mdi:solar-power"     # Produced energy
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return extra state attributes."""
+        if not self.coordinator.data or not self.coordinator.data.get(self.period):
+            return {}
+
+        period_data = self.coordinator.data.get(self.period)
+        frame = period_data.get("frame", {})
+
+        # Get translated attribute names
+        period_key = _TRANSLATIONS_CACHE.get(
+            "entity.sensor.period",
+            "Period"
+        )
+        usage_type_key = _TRANSLATIONS_CACHE.get(
+            "entity.sensor.usage_type",
+            "Usage type"
+        )
+        last_updated_key = _TRANSLATIONS_CACHE.get(
+            "entity.sensor.last_updated",
+            "Last updated"
+        )
+
+        attrs = {
+            period_key: self.period,
+            usage_type_key: "Consumed" if self.usage_type == "fae" else "Produced",
+        }
+
+        # Add frame info if available
+        if frame:
+            start_utc = frame.get("start")
+            end_utc = frame.get("end")
+
+            start_local = dt_util.as_local(dt_util.parse_datetime(start_utc)) if start_utc else None
+            end_local = dt_util.as_local(dt_util.parse_datetime(end_utc)) if end_utc else None
+
+            attrs.update({
+                "start": start_local.strftime("%Y-%m-%d") if start_local else None,
+                "end": end_local.strftime("%Y-%m-%d") if end_local else None,
+            })
+
+        # Add last updated
+        now = dt_util.now()
+        attrs[last_updated_key] = now.strftime("%Y-%m-%d %H:%M:%S")
+
+        return attrs
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return self.coordinator.last_update_success and self.coordinator.data is not None
+
+
+class PstrykCarbonFootprintSensor(CoordinatorEntity, SensorEntity):
+    """Carbon footprint sensor showing CO2 emissions."""
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_device_class = SensorDeviceClass.GAS
+
+    def __init__(self, coordinator: PstrykCarbonFootprintUpdateCoordinator,
+                 period: str, entry_id: str):
+        """Initialize the carbon footprint sensor."""
+        super().__init__(coordinator)
+        self.period = period  # 'daily', 'monthly', or 'yearly'
+        self.entry_id = entry_id
+
+    @property
+    def name(self) -> str:
+        """Return the name of the sensor."""
+        period_name = _TRANSLATIONS_CACHE.get(
+            f"entity.sensor.period_{self.period}",
+            self.period.title()
+        )
+        return f"Pstryk {period_name} Carbon Footprint"
+
+    @property
+    def unique_id(self) -> str:
+        """Return unique ID."""
+        return f"{DOMAIN}_carbon_footprint_{self.period}"
+
+    @property
+    def device_info(self):
+        """Return device information."""
+        return {
+            "identifiers": {(DOMAIN, "pstryk_energy")},
+            "name": "Pstryk Energy",
+            "manufacturer": "Pstryk",
+            "model": "Energy Price Monitor",
+            "sw_version": "1.7.1",
+        }
+
+    @property
+    def native_value(self):
+        """Return the state of the sensor from API data."""
+        if not self.coordinator.data:
+            return None
+
+        period_data = self.coordinator.data.get(self.period)
+        if not period_data:
+            return None
+
+        return period_data.get("total_carbon_footprint", 0)
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        """Return the unit of measurement."""
+        return "gCO2eq"
+
+    @property
+    def icon(self) -> str:
+        """Return the icon."""
+        return "mdi:leaf"
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return extra state attributes."""
+        if not self.coordinator.data or not self.coordinator.data.get(self.period):
+            return {}
+
+        period_data = self.coordinator.data.get(self.period)
+        frame = period_data.get("frame", {})
+
+        # Get translated attribute names
+        period_key = _TRANSLATIONS_CACHE.get(
+            "entity.sensor.period",
+            "Period"
+        )
+        last_updated_key = _TRANSLATIONS_CACHE.get(
+            "entity.sensor.last_updated",
+            "Last updated"
+        )
+
+        attrs = {
+            period_key: self.period,
+        }
+
+        # Add frame info if available
+        if frame:
+            start_utc = frame.get("start")
+            end_utc = frame.get("end")
+
+            start_local = dt_util.as_local(dt_util.parse_datetime(start_utc)) if start_utc else None
+            end_local = dt_util.as_local(dt_util.parse_datetime(end_utc)) if end_utc else None
+
+            attrs.update({
+                "start": start_local.strftime("%Y-%m-%d") if start_local else None,
+                "end": end_local.strftime("%Y-%m-%d") if end_local else None,
+            })
+
+        # Add last updated
+        now = dt_util.now()
+        attrs[last_updated_key] = now.strftime("%Y-%m-%d %H:%M:%S")
+
+        return attrs
+
     @property
     def available(self) -> bool:
         """Return if entity is available."""

@@ -10,6 +10,7 @@ SELL_ENDPOINT = "prosumer-pricing/?resolution=hour&window_start={start}&window_e
 # Energy cost and usage endpoints
 ENERGY_COST_ENDPOINT = "meter-data/energy-cost/?resolution={resolution}&window_start={start}&window_end={end}&for_tz=Europe/Warsaw"
 ENERGY_USAGE_ENDPOINT = "meter-data/energy-usage/?resolution={resolution}&window_start={start}&window_end={end}&for_tz=Europe/Warsaw"
+CARBON_FOOTPRINT_ENDPOINT = "meter-data/carbon-footprint/?resolution={resolution}&window_start={start}&window_end={end}&for_tz=Europe/Warsaw"
 
 ATTR_BUY_PRICE = "buy_price"
 ATTR_SELL_PRICE = "sell_price"
