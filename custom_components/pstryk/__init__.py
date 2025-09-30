@@ -3,20 +3,17 @@ import logging
 import asyncio
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.components import mqtt
-from datetime import timedelta
-from homeassistant.util import dt as dt_util
 
 from .mqtt_publisher import PstrykMqttPublisher
 from .mqtt_common import setup_periodic_mqtt_publish
 from .services import async_setup_services, async_unload_services
 from .const import (
-    DOMAIN, 
-    CONF_MQTT_ENABLED, 
-    CONF_MQTT_TOPIC_BUY, 
+    DOMAIN,
+    CONF_MQTT_ENABLED,
+    CONF_MQTT_TOPIC_BUY,
     CONF_MQTT_TOPIC_SELL,
     CONF_MQTT_48H_MODE,
-    DEFAULT_MQTT_TOPIC_BUY, 
+    DEFAULT_MQTT_TOPIC_BUY,
     DEFAULT_MQTT_TOPIC_SELL
 )
 
@@ -76,7 +73,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN][f"{entry.entry_id}_mqtt"] = mqtt_publisher
         
         # We need to wait until sensors are fully setup
-        async def start_mqtt_publisher(_):
+        async def start_mqtt_publisher():
             """Start the MQTT publisher after a short delay to ensure coordinators are ready."""
             await mqtt_publisher.async_initialize()
             
@@ -111,7 +108,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Add delay before starting
         async def delayed_start():
             await asyncio.sleep(5)  # Wait 5 seconds before starting
-            await start_mqtt_publisher(None)
+            await start_mqtt_publisher()
             
         hass.async_create_task(delayed_start())
         
@@ -169,6 +166,12 @@ async def _cleanup_coordinators(hass: HomeAssistant, entry: ConfigEntry) -> None
     
     # Clean up mqtt 48h mode flag
     hass.data[DOMAIN].pop(f"{entry.entry_id}_mqtt_48h_mode", None)
+
+    # Clean up API client
+    api_client_key = f"{entry.entry_id}_api_client"
+    if api_client_key in hass.data[DOMAIN]:
+        _LOGGER.debug("Cleaning up API client for entry %s", entry.entry_id)
+        hass.data[DOMAIN].pop(api_client_key, None)
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload sensor platform and clear data."""
