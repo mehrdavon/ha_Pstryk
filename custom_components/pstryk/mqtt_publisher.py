@@ -1,9 +1,8 @@
 """MQTT Publisher for Pstryk Energy integration."""
 import logging
 import json
-from datetime import datetime, timedelta
+from datetime import timedelta
 import asyncio
-from homeassistant.helpers.entity import Entity
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from homeassistant.components import mqtt
