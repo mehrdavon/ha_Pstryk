@@ -192,15 +192,11 @@ class PstrykConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     def async_get_options_flow(config_entry):
         """Get the options flow for this handler."""
-        return PstrykOptionsFlowHandler(config_entry)
+        return PstrykOptionsFlowHandler()
 
 
 class PstrykOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options flow for Pstryk Energy - single page view."""
-
-    def __init__(self, config_entry):
-        """Initialize options flow."""
-        super().__init__(config_entry)
 
     async def async_step_init(self, user_input=None):
         """Manage the options - single page for quick configuration."""
