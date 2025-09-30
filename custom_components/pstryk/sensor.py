@@ -1,19 +1,18 @@
 """Sensor platform for Pstryk Energy integration."""
 import logging
 import asyncio
-from datetime import datetime, timedelta
-from decimal import Decimal, ROUND_HALF_UP
+from datetime import timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.components.sensor import SensorEntity, SensorStateClass, SensorDeviceClass
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.restore_state import RestoreEntity
-from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 from .update_coordinator import PstrykDataUpdateCoordinator
 from .energy_cost_coordinator import PstrykCostDataUpdateCoordinator
+from .api_client import PstrykAPIClient
 from .const import (
-    DOMAIN, 
+    DOMAIN,
     CONF_MQTT_48H_MODE,
     CONF_RETRY_ATTEMPTS,
     CONF_RETRY_DELAY,
@@ -26,6 +25,29 @@ _LOGGER = logging.getLogger(__name__)
 
 # Store translations globally to avoid reloading for each sensor
 _TRANSLATIONS_CACHE = {}
+
+# Cache for manifest version
+_VERSION_CACHE = None
+
+
+def get_integration_version(hass: HomeAssistant) -> str:
+    """Get integration version from manifest.json."""
+    global _VERSION_CACHE
+    if _VERSION_CACHE is not None:
+        return _VERSION_CACHE
+
+    try:
+        import json
+        import os
+        manifest_path = os.path.join(os.path.dirname(__file__), "manifest.json")
+        with open(manifest_path, "r") as f:
+            manifest = json.load(f)
+            _VERSION_CACHE = manifest.get("version", "unknown")
+            return _VERSION_CACHE
+    except Exception as ex:
+        _LOGGER.warning("Failed to read version from manifest.json: %s", ex)
+        return "unknown"
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -71,7 +93,7 @@ async def async_setup_entry(
                 coordinator._unsub_afternoon()
             # Remove from hass data
             hass.data[DOMAIN].pop(key, None)
-            
+
     # Cleanup old cost coordinator if exists
     cost_key = f"{entry.entry_id}_cost"
     cost_coordinator = hass.data[DOMAIN].get(cost_key)
@@ -83,105 +105,155 @@ async def async_setup_entry(
             cost_coordinator._unsub_midnight()
         hass.data[DOMAIN].pop(cost_key, None)
 
+    # Create shared API client (or reuse existing one)
+    api_client_key = f"{entry.entry_id}_api_client"
+    if api_client_key not in hass.data[DOMAIN]:
+        api_client = PstrykAPIClient(hass, api_key)
+        hass.data[DOMAIN][api_client_key] = api_client
+    else:
+        api_client = hass.data[DOMAIN][api_client_key]
+
     entities = []
     coordinators = []
-    
+
     # Create price coordinators first
     for price_type in ("buy", "sell"):
         key = f"{entry.entry_id}_{price_type}"
         coordinator = PstrykDataUpdateCoordinator(
-            hass, 
-            api_key, 
-            price_type, 
+            hass,
+            api_client,
+            price_type,
             mqtt_48h_mode,
             retry_attempts,
             retry_delay
         )
         coordinators.append((coordinator, price_type, key))
-        
-    # Create cost coordinator
-    cost_coordinator = PstrykCostDataUpdateCoordinator(hass, api_key, retry_attempts, retry_delay)
+
+    # Create cost coordinator (will be initialized as unavailable for lazy loading)
+    cost_coordinator = PstrykCostDataUpdateCoordinator(hass, api_client)
+    cost_coordinator.last_update_success = False
     coordinators.append((cost_coordinator, "cost", cost_key))
-        
-    # Initialize coordinators in parallel to save time
-    initial_refresh_tasks = []
-    for coordinator, coordinator_type, _ in coordinators:
-        # Check if we're in the setup process or reloading
+
+    # Initialize ONLY price coordinators immediately (fast startup)
+    # Cost coordinator will be loaded lazily in background
+    _LOGGER.info("Starting quick initialization - loading price coordinators only")
+
+    async def safe_initial_fetch(coord, coord_type):
+        """Safely fetch initial data for coordinator."""
         try:
-            # Newer Home Assistant versions
-            from homeassistant.config_entries import ConfigEntryState
-            is_setup = entry.state == ConfigEntryState.SETUP_IN_PROGRESS
-        except ImportError:
-            # Older Home Assistant versions - try another approach
-            is_setup = not hass.data[DOMAIN].get(f"{entry.entry_id}_initialized", False)
-            
-        if is_setup:
-            initial_refresh_tasks.append(coordinator.async_config_entry_first_refresh())
-        else:
-            initial_refresh_tasks.append(coordinator.async_refresh())
-            
+            data = await coord._async_update_data()
+            coord.data = data
+            coord.last_update_success = True
+            _LOGGER.debug("Successfully initialized %s coordinator", coord_type)
+            return True
+        except Exception as err:
+            _LOGGER.error("Failed initial fetch for %s coordinator: %s", coord_type, err)
+            coord.last_update_success = False
+            return err
+
+    # Load only price coordinators immediately for fast startup
+    price_coordinators = [(c, t, k) for c, t, k in coordinators if t in ("buy", "sell")]
+
+    initial_refresh_tasks = [
+        safe_initial_fetch(coordinator, coordinator_type)
+        for coordinator, coordinator_type, _ in price_coordinators
+    ]
+
     refresh_results = await asyncio.gather(*initial_refresh_tasks, return_exceptions=True)
-    
-    # Mark as initialized after first setup
-    hass.data[DOMAIN][f"{entry.entry_id}_initialized"] = True
-    
-    # Process coordinators and set up sensors
-    for i, (coordinator, coordinator_type, key) in enumerate(coordinators):
-        # Check if initial refresh succeeded
+
+    # Check results for price coordinators
+    for i, (coordinator, coordinator_type, key) in enumerate(price_coordinators):
         if isinstance(refresh_results[i], Exception):
-            _LOGGER.error("Failed to initialize %s coordinator: %s", 
+            _LOGGER.error("Failed to initialize %s coordinator: %s",
                          coordinator_type, str(refresh_results[i]))
-            # Still add coordinator and set up sensors even if initial load failed
-        
+    
+    # Store all coordinators and set up scheduling
+    buy_coord = None
+    sell_coord = None
+
+    for coordinator, coordinator_type, key in coordinators:
         # Store coordinator
         hass.data[DOMAIN][key] = coordinator
-        
+
         # Schedule updates for price coordinators
         if coordinator_type in ("buy", "sell"):
             coordinator.schedule_hourly_update()
             coordinator.schedule_midnight_update()
-            
+
             # Schedule afternoon update if 48h mode is enabled
             if mqtt_48h_mode:
                 coordinator.schedule_afternoon_update()
-                
+
+            # Create ONLY current price sensors (fast, immediate)
+            top = buy_top if coordinator_type == "buy" else sell_top
+            worst = buy_worst if coordinator_type == "buy" else sell_worst
+            entities.append(PstrykPriceSensor(coordinator, coordinator_type, top, worst, entry.entry_id))
+
+            # Store coordinator references for later use
+            if coordinator_type == "buy":
+                buy_coord = coordinator
+            elif coordinator_type == "sell":
+                sell_coord = coordinator
+
         # Schedule updates for cost coordinator
         elif coordinator_type == "cost":
             coordinator.schedule_hourly_update()
             coordinator.schedule_midnight_update()
 
-        # Create price sensors
-        if coordinator_type in ("buy", "sell"):
-            top = buy_top if coordinator_type == "buy" else sell_top
-            worst = buy_worst if coordinator_type == "buy" else sell_worst
-            entities.append(PstrykPriceSensor(coordinator, coordinator_type, top, worst, entry.entry_id))
-            
-            # Create average price sensors (with both coordinators)
-            entities.append(PstrykAveragePriceSensor(
-                cost_coordinator, 
-                coordinator,  # Pass the actual price coordinator, not string!
-                "monthly", 
-                entry.entry_id
-            ))
-            entities.append(PstrykAveragePriceSensor(
-                cost_coordinator, 
-                coordinator,  # Pass the actual price coordinator, not string!
-                "yearly", 
-                entry.entry_id
-            ))
-    
-    # Create financial balance sensors using cost coordinator
-    entities.append(PstrykFinancialBalanceSensor(
-        cost_coordinator, "daily", entry.entry_id
-    ))
-    entities.append(PstrykFinancialBalanceSensor(
-        cost_coordinator, "monthly", entry.entry_id
-    ))
-    entities.append(PstrykFinancialBalanceSensor(
-        cost_coordinator, "yearly", entry.entry_id
-    ))
+    # Create remaining sensors (average price + financial balance) - they will show as unavailable initially
+    remaining_entities = []
 
-    async_add_entities(entities, True)
+    # Create average price sensors for buy
+    if buy_coord:
+        for period in ("daily", "monthly", "yearly"):
+            remaining_entities.append(PstrykAveragePriceSensor(
+                cost_coordinator, buy_coord, period, entry.entry_id
+            ))
+
+    # Create average price sensors for sell
+    if sell_coord:
+        for period in ("daily", "monthly", "yearly"):
+            remaining_entities.append(PstrykAveragePriceSensor(
+                cost_coordinator, sell_coord, period, entry.entry_id
+            ))
+
+    # Create financial balance sensors
+    for period in ("daily", "monthly", "yearly"):
+        remaining_entities.append(PstrykFinancialBalanceSensor(
+            cost_coordinator, period, entry.entry_id
+        ))
+
+    # Register ALL sensors immediately:
+    # - Current price sensors (2) with data
+    # - Remaining sensors (15) as unavailable until cost coordinator loads
+    _LOGGER.info("Registering %d current price sensors with data and %d additional sensors as unavailable",
+                 len(entities), len(remaining_entities))
+    async_add_entities(entities + remaining_entities)
+
+    # Load cost coordinator data in background - sensors will automatically update when data arrives
+    async def lazy_load_cost_data():
+        """Load cost coordinator data in background - sensors update automatically via coordinator."""
+        _LOGGER.info("Waiting 15 seconds before loading cost coordinator data")
+        await asyncio.sleep(15)
+
+        _LOGGER.info("Loading cost coordinator data in background")
+        try:
+            # Load cost coordinator with all resolutions
+            data = await cost_coordinator._async_update_data(fetch_all=True)
+            cost_coordinator.data = data
+            cost_coordinator.last_update_success = True
+            # Notify all listening sensors that data is available
+            cost_coordinator.async_update_listeners()
+            _LOGGER.info("Cost coordinator loaded successfully - %d sensors updated",
+                        len(remaining_entities))
+        except Exception as err:
+            _LOGGER.warning("Failed to load cost coordinator: %s. %d sensors remain unavailable.",
+                          err, len(remaining_entities))
+            cost_coordinator.last_update_success = False
+            cost_coordinator.data = None
+
+    # Start background data loading
+    hass.async_create_task(lazy_load_cost_data())
 
 
 class PstrykPriceSensor(CoordinatorEntity, SensorEntity):
@@ -218,7 +290,7 @@ class PstrykPriceSensor(CoordinatorEntity, SensorEntity):
             "name": "Pstryk Energy",
             "manufacturer": "Pstryk",
             "model": "Energy Price Monitor",
-            "sw_version": "1.7.1",
+            "sw_version": get_integration_version(self.hass),
         }
 
     def _get_current_price(self):
@@ -752,7 +824,7 @@ class PstrykAveragePriceSensor(RestoreEntity, SensorEntity):
         self.cost_coordinator = cost_coordinator
         self.price_coordinator = price_coordinator
         self.price_type = price_coordinator.price_type
-        self.period = period  # 'monthly' or 'yearly'
+        self.period = period  # 'daily', 'monthly' or 'yearly'
         self.entry_id = entry_id
         self._attr_device_class = SensorDeviceClass.MONETARY
         self._state = None
@@ -810,7 +882,7 @@ class PstrykAveragePriceSensor(RestoreEntity, SensorEntity):
             "name": "Pstryk Energy",
             "manufacturer": "Pstryk",
             "model": "Energy Price Monitor",
-            "sw_version": "1.7.1",
+            "sw_version": get_integration_version(self.hass),
         }
         
     @property
@@ -956,7 +1028,7 @@ class PstrykFinancialBalanceSensor(CoordinatorEntity, SensorEntity):
             "name": "Pstryk Energy",
             "manufacturer": "Pstryk",
             "model": "Energy Price Monitor",
-            "sw_version": "1.7.1",
+            "sw_version": get_integration_version(self.hass),
         }
         
     @property
