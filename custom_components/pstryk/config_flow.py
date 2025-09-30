@@ -1,22 +1,21 @@
 """Config flow for Pstryk Energy integration - Enhanced version."""
 from homeassistant import config_entries
 import voluptuous as vol
-import aiohttp
 import asyncio
-import async_timeout
 from datetime import timedelta
 from homeassistant.util import dt as dt_util
 from homeassistant.core import callback
 from homeassistant.components import mqtt
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .const import (
-    DOMAIN, 
-    API_URL, 
-    API_TIMEOUT, 
-    DEFAULT_MQTT_TOPIC_BUY, 
-    DEFAULT_MQTT_TOPIC_SELL, 
-    CONF_MQTT_ENABLED, 
-    CONF_MQTT_TOPIC_BUY, 
+    DOMAIN,
+    API_URL,
+    API_TIMEOUT,
+    DEFAULT_MQTT_TOPIC_BUY,
+    DEFAULT_MQTT_TOPIC_SELL,
+    CONF_MQTT_ENABLED,
+    CONF_MQTT_TOPIC_BUY,
     CONF_MQTT_TOPIC_SELL,
     CONF_MQTT_48H_MODE,
     CONF_RETRY_ATTEMPTS,
@@ -161,19 +160,19 @@ class PstrykConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         now = dt_util.utcnow()
         start_utc = now.strftime("%Y-%m-%dT%H:%M:%SZ")
         end_utc = (now + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        
+
         endpoint = f"pricing/?resolution=hour&window_start={start_utc}&window_end={end_utc}"
         url = f"{API_URL}{endpoint}"
-        
+
         try:
-            async with aiohttp.ClientSession() as session:
-                async with async_timeout.timeout(API_TIMEOUT):
-                    resp = await session.get(
-                        url,
-                        headers={"Authorization": api_key, "Accept": "application/json"}
-                    )
-                    return resp.status == 200
-        except (aiohttp.ClientError, asyncio.TimeoutError):
+            session = async_get_clientsession(self.hass)
+            async with asyncio.timeout(API_TIMEOUT):
+                resp = await session.get(
+                    url,
+                    headers={"Authorization": api_key, "Accept": "application/json"}
+                )
+                return resp.status == 200
+        except (Exception, asyncio.TimeoutError):
             return False
     
     async def _check_mqtt_configuration(self):
@@ -201,7 +200,7 @@ class PstrykOptionsFlowHandler(config_entries.OptionsFlow):
 
     def __init__(self, config_entry):
         """Initialize options flow."""
-        self.config_entry = config_entry
+        super().__init__(config_entry)
 
     async def async_step_init(self, user_input=None):
         """Manage the options - single page for quick configuration."""
