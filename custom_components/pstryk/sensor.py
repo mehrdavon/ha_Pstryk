@@ -223,6 +223,15 @@ async def async_setup_entry(
             cost_coordinator, period, entry.entry_id
         ))
 
+    # Create energy usage sensors (consumed and produced energy)
+    for period in ("daily", "monthly", "yearly"):
+        remaining_entities.append(PstrykEnergyUsageSensor(
+            cost_coordinator, "fae", period, entry.entry_id
+        ))
+        remaining_entities.append(PstrykEnergyUsageSensor(
+            cost_coordinator, "rae", period, entry.entry_id
+        ))
+
     # Register ALL sensors immediately:
     # - Current price sensors (2) with data
     # - Remaining sensors (15) as unavailable until cost coordinator loads
@@ -1155,7 +1164,128 @@ class PstrykFinancialBalanceSensor(CoordinatorEntity, SensorEntity):
         attrs[last_updated_key] = now.strftime("%Y-%m-%d %H:%M:%S")
         
         return attrs
-        
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return self.coordinator.last_update_success and self.coordinator.data is not None
+
+
+class PstrykEnergyUsageSensor(CoordinatorEntity, SensorEntity):
+    """Energy usage sensor for FAE (consumed) and RAE (produced) energy."""
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_device_class = SensorDeviceClass.ENERGY
+
+    def __init__(self, coordinator: PstrykCostDataUpdateCoordinator,
+                 usage_type: str, period: str, entry_id: str):
+        """Initialize the energy usage sensor."""
+        super().__init__(coordinator)
+        self.usage_type = usage_type  # 'fae' (consumed) or 'rae' (produced)
+        self.period = period  # 'daily', 'monthly', or 'yearly'
+        self.entry_id = entry_id
+
+    @property
+    def name(self) -> str:
+        """Return the name of the sensor."""
+        period_name = _TRANSLATIONS_CACHE.get(
+            f"entity.sensor.period_{self.period}",
+            self.period.title()
+        )
+        usage_name = "Energy Consumed" if self.usage_type == "fae" else "Energy Produced"
+        return f"Pstryk {period_name} {usage_name}"
+
+    @property
+    def unique_id(self) -> str:
+        """Return unique ID."""
+        return f"{DOMAIN}_energy_usage_{self.usage_type}_{self.period}"
+
+    @property
+    def device_info(self):
+        """Return device information."""
+        return {
+            "identifiers": {(DOMAIN, "pstryk_energy")},
+            "name": "Pstryk Energy",
+            "manufacturer": "Pstryk",
+            "model": "Energy Price Monitor",
+            "sw_version": get_integration_version(self.hass),
+        }
+
+    @property
+    def native_value(self):
+        """Return the state of the sensor from API data."""
+        if not self.coordinator.data:
+            return None
+
+        period_data = self.coordinator.data.get(self.period)
+        if not period_data:
+            return None
+
+        # Get usage based on type
+        if self.usage_type == "fae":
+            return period_data.get("fae_usage", 0)
+        else:  # rae
+            return period_data.get("rae_usage", 0)
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        """Return the unit of measurement."""
+        return "kWh"
+
+    @property
+    def icon(self) -> str:
+        """Return the icon based on usage type."""
+        if self.usage_type == "fae":
+            return "mdi:lightning-bolt"  # Consumed energy
+        else:
+            return "mdi:solar-power"     # Produced energy
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return extra state attributes."""
+        if not self.coordinator.data or not self.coordinator.data.get(self.period):
+            return {}
+
+        period_data = self.coordinator.data.get(self.period)
+        frame = period_data.get("frame", {})
+
+        # Get translated attribute names
+        period_key = _TRANSLATIONS_CACHE.get(
+            "entity.sensor.period",
+            "Period"
+        )
+        usage_type_key = _TRANSLATIONS_CACHE.get(
+            "entity.sensor.usage_type",
+            "Usage type"
+        )
+        last_updated_key = _TRANSLATIONS_CACHE.get(
+            "entity.sensor.last_updated",
+            "Last updated"
+        )
+
+        attrs = {
+            period_key: self.period,
+            usage_type_key: "Consumed" if self.usage_type == "fae" else "Produced",
+        }
+
+        # Add frame info if available
+        if frame:
+            start_utc = frame.get("start")
+            end_utc = frame.get("end")
+
+            start_local = dt_util.as_local(dt_util.parse_datetime(start_utc)) if start_utc else None
+            end_local = dt_util.as_local(dt_util.parse_datetime(end_utc)) if end_utc else None
+
+            attrs.update({
+                "start": start_local.strftime("%Y-%m-%d") if start_local else None,
+                "end": end_local.strftime("%Y-%m-%d") if end_local else None,
+            })
+
+        # Add last updated
+        now = dt_util.now()
+        attrs[last_updated_key] = now.strftime("%Y-%m-%d %H:%M:%S")
+
+        return attrs
+
     @property
     def available(self) -> bool:
         """Return if entity is available."""
